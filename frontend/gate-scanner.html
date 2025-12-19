@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta name="description" content="Library Gate Security Scanner - QR Code Verification System" />
+  <meta name="theme-color" content="#1e3c72" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  
+  <!-- Performance -->
+  <!-- Using local libraries for 100% offline support -->
+  
+  <!-- Auto HTTPS Redirect for Mobile (Camera Access) -->
+  <script src="auto-https-redirect.js"></script>
+  
+  <title>Library Gate Security Scanner v3.3 - OFFLINE MODE</title>
+  
+  <!-- Stylesheets & Scripts - LOCAL (100% Offline) -->
+  <script src="libs/tailwind.min.js"></script>
+  <script src="libs/html5-qrcode.min.js"></script>
+  <link rel="stylesheet" href="responsive.css?v=20251030" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    .status-approved {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      animation: pulse-green 1.5s infinite;
+    }
+    .status-alarm {
+      background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+      animation: pulse-red 1s infinite;
+    }
+    .status-idle {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 40px rgba(56, 239, 125, 0.8); }
+      50% { box-shadow: 0 0 80px rgba(56, 239, 125, 1); }
+    }
+    @keyframes pulse-red {
+      0%, 100% { box-shadow: 0 0 40px rgba(244, 92, 67, 0.8); }
+      50% { box-shadow: 0 0 80px rgba(244, 92, 67, 1); }
+    }
+    .alarm-icon {
+      font-size: 120px;
+      animation: shake 0.5s infinite;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="max-w-4xl mx-auto p-6">
+    <!-- Header -->
+    <div class="text-center mb-6">
+      <h1 class="text-5xl font-bold text-white mb-2">🚪 Library Gate Security</h1>
+      <p class="text-white text-xl">Scan book QR code to verify exit authorization</p>
+      <p class="text-green-300 text-lg font-bold mt-2">✅ v3.3 - 3-Second Scan Cooldown Added</p>
+    </div>
+
+    <!-- Status Display -->
+    <div id="statusDisplay" class="status-idle rounded-2xl mb-6 shadow-2xl p-12 text-center min-h-80">
+      <div id="statusIcon" class="text-9xl mb-4">📱</div>
+      <h2 id="statusMessage" class="text-4xl font-bold text-white mb-3">Ready to Scan</h2>
+      <p id="statusDetail" class="text-2xl text-white opacity-90">Please enter book ID or scan QR code</p>
+    </div>
+
+    <!-- Manual Input - PRIMARY METHOD -->
+    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-2xl p-8 mb-6">
+      <div class="flex items-center justify-center mb-4">
+        <h3 class="text-3xl font-bold text-white">📝 Enter Book ID</h3>
+      </div>
+      <p class="text-white text-center mb-6 text-lg">Main verification method - Fast & Reliable</p>
+      
+      <div class="flex gap-3 mb-4">
+        <input 
+          type="number" 
+          id="manualBookId" 
+          placeholder="Type Book ID here..." 
+          class="flex-1 px-8 py-6 text-3xl text-center border-4 border-white rounded-2xl focus:border-yellow-300 focus:outline-none font-bold"
+          onkeypress="if(event.key==='Enter') verifyManualEntry()"
+          autofocus
+        />
+        <button onclick="verifyManualEntry()" class="bg-white hover:bg-yellow-300 text-green-700 px-10 py-6 rounded-2xl font-bold text-2xl transition-all shadow-lg hover:scale-105">
+          ✓ CHECK
+        </button>
+      </div>
+      
+      <div class="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur">
+        <p class="text-white text-center font-semibold mb-2">📚 Quick Test IDs:</p>
+        <div class="flex justify-center gap-3">
+          <button onclick="document.getElementById('manualBookId').value='2'; verifyManualEntry();" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white px-6 py-3 rounded-lg font-bold transition-all">
+            Book 5 ✅
+          </button>
+          <button onclick="document.getElementById('manualBookId').value='7'; verifyManualEntry();" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white px-6 py-3 rounded-lg font-bold transition-all">
+            Book 7 ✅
+          </button>
+          <button onclick="document.getElementById('manualBookId').value='1'; verifyManualEntry();" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white px-6 py-3 rounded-lg font-bold transition-all">
+            Book 1 🚨
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera Scanner (Optional - Desktop Only) -->
+    <div class="bg-white rounded-2xl shadow-2xl p-8 mb-6">
+      <h3 class="text-2xl font-bold text-gray-800 mb-4">📷 Camera QR Scanner (Optional)</h3>
+      
+      <!-- Warning about mobile -->
+      <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-4 rounded">
+        <p class="text-sm text-yellow-800 font-semibold mb-2">⚠️ Camera on Mobile:</p>
+        <p class="text-sm text-yellow-700">
+          Camera may not work on mobile when accessing via IP address (requires HTTPS). 
+          <strong>Use manual entry above instead</strong> - it's faster and more reliable!
+        </p>
+      </div>
+      
+      <!-- Instructions -->
+      <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded">
+        <p class="text-sm text-blue-800 font-semibold mb-2">📌 How to use (Desktop only):</p>
+        <ol class="text-sm text-blue-700 space-y-1 ml-4">
+          <li>1. Click "Start Camera" button below</li>
+          <li>2. Your browser will ask for camera permission - Click "Allow"</li>
+          <li>3. Point camera at the book's QR code</li>
+          <li>4. Scanner will automatically detect and verify</li>
+        </ol>
+      </div>
+      
+      <div class="flex gap-3 mb-4">
+        <button id="startScanBtn" onclick="startScanning()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-bold text-lg shadow-lg transition-all">
+          📷 Start Camera
+        </button>
+        <button id="stopScanBtn" onclick="stopScanning()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-6 py-4 rounded-xl font-bold text-lg hidden">
+          ⏹️ Stop Camera
+        </button>
+      </div>
+      <div id="scannerSection" class="hidden">
+        <div id="reader" class="border-4 border-blue-500 rounded-xl overflow-hidden"></div>
+      </div>
+    </div>
+
+    <!-- Book Details Card -->
+    <div id="bookDetailsCard" class="bg-white rounded-2xl shadow-2xl p-8 mb-6 hidden">
+      <h3 class="text-2xl font-bold text-gray-800 mb-4">📚 Book Details</h3>
+      <div id="bookDetails"></div>
+    </div>
+
+    <!-- History Log -->
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <h3 class="text-xl font-bold text-gray-800 mb-4">📋 Recent Scans</h3>
+      <div id="historyLog" class="space-y-2 max-h-60 overflow-y-auto">
+        <p class="text-gray-500 text-center">No scans yet</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let html5QrcodeScanner = null;
+    let scanHistory = [];
+    let isScanning = false; // Cooldown flag
+    let lastScannedCode = null; // Track last scanned code
+
+    // THIS IS THE EXACT WORKING CODE FROM gate-simple.html
+    async function verifyBook(bookId) {
+      // Check if we're in cooldown period
+      if (isScanning) {
+        console.log('Cooldown active, ignoring scan');
+        return;
+      }
+      
+      // Check if it's the same code as last time
+      if (bookId === lastScannedCode) {
+        console.log('Same code detected, ignoring');
+        return;
+      }
+      
+      // Set cooldown and remember this code
+      isScanning = true;
+      lastScannedCode = bookId;
+      try {
+        const url = `/api/gate/verify/${bookId}`;
+        console.log('Verifying:', url);
+        
+        // Get response as text first, then parse (THIS IS THE KEY!)
+        const response = await fetch(url);
+        const text = await response.text();
+        const data = JSON.parse(text);
+        
+        console.log('API Response:', data);
+        
+        displayResult(data);
+        addToHistory(data);
+        
+        if (data.allowed === true) {
+          playSuccessSound();
+        } else {
+          playAlarmSound();
+        }
+        
+      } catch (error) {
+        console.error('Error:', error);
+        displayError('System error: ' + error.message);
+      } finally {
+        // Show cooldown message
+        const statusDetail = document.getElementById('statusDetail');
+        const originalDetail = statusDetail.textContent;
+        statusDetail.innerHTML = '⏳ Cooldown: 3 seconds...';
+        
+        // Release cooldown after 3 seconds
+        let countdown = 3;
+        const countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            statusDetail.innerHTML = `⏳ Cooldown: ${countdown} seconds...`;
+          }
+        }, 1000);
+        
+        setTimeout(() => {
+          isScanning = false;
+          lastScannedCode = null; // Allow same code to be scanned again
+          clearInterval(countdownInterval);
+          console.log('✅ Cooldown released - ready for next scan');
+        }, 3000);
+      }
+    }
+
+    function displayResult(data) {
+      const statusDisplay = document.getElementById('statusDisplay');
+      const statusIcon = document.getElementById('statusIcon');
+      const statusMessage = document.getElementById('statusMessage');
+      const statusDetail = document.getElementById('statusDetail');
+      const bookDetailsCard = document.getElementById('bookDetailsCard');
+      const bookDetails = document.getElementById('bookDetails');
+
+      if (data.allowed === true) {
+        // APPROVED - Green
+        statusDisplay.className = 'status-approved rounded-2xl mb-6 shadow-2xl p-12 text-center min-h-80';
+        statusIcon.textContent = '✅';
+        statusMessage.textContent = 'EXIT APPROVED';
+        statusDetail.textContent = data.message || 'Book is properly borrowed';
+        
+        if (data.book) {
+          bookDetailsCard.classList.remove('hidden');
+          bookDetails.innerHTML = `
+            <div class="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+              <p class="text-green-800 font-bold text-lg">✅ AUTHORIZED EXIT</p>
+              <p class="text-green-600">This book is properly borrowed. Exit approved.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-lg">
+              <div class="font-semibold text-gray-700">Title:</div>
+              <div class="text-gray-900">${data.book.title || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">Author:</div>
+              <div class="text-gray-900">${data.book.author || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">ISBN:</div>
+              <div class="text-gray-900">${data.book.isbn || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">Borrowed By:</div>
+              <div class="text-green-600 font-bold text-xl">${data.book.borrowedBy || 'Unknown'}</div>
+              
+              <div class="font-semibold text-gray-700">Borrowed Date:</div>
+              <div class="text-gray-900">${data.book.borrowedDate ? new Date(data.book.borrowedDate).toLocaleString() : 'N/A'}</div>
+            </div>
+          `;
+        }
+      } else {
+        // ALARM - Red
+        statusDisplay.className = 'status-alarm rounded-2xl mb-6 shadow-2xl p-12 text-center min-h-80';
+        statusIcon.innerHTML = '<div class="alarm-icon">🚨</div>';
+        statusMessage.textContent = 'SECURITY ALARM!';
+        statusDetail.textContent = data.message || 'Unauthorized removal detected';
+        
+        if (data.book) {
+          bookDetailsCard.classList.remove('hidden');
+          bookDetails.innerHTML = `
+            <div class="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
+              <p class="text-red-800 font-bold text-xl">⚠️ UNAUTHORIZED REMOVAL DETECTED</p>
+              <p class="text-red-600 text-lg">This book is NOT borrowed. Security has been alerted.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-lg">
+              <div class="font-semibold text-gray-700">Title:</div>
+              <div class="text-gray-900">${data.book.title || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">Author:</div>
+              <div class="text-gray-900">${data.book.author || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">ISBN:</div>
+              <div class="text-gray-900">${data.book.isbn || 'N/A'}</div>
+              
+              <div class="font-semibold text-gray-700">Status:</div>
+              <div class="text-red-600 font-bold text-xl">NOT BORROWED</div>
+            </div>
+          `;
+        }
+      }
+
+      // Auto reset after 5 seconds
+      setTimeout(resetDisplay, 5000);
+    }
+
+    function resetDisplay() {
+      const statusDisplay = document.getElementById('statusDisplay');
+      const statusIcon = document.getElementById('statusIcon');
+      const statusMessage = document.getElementById('statusMessage');
+      const statusDetail = document.getElementById('statusDetail');
+      const bookDetailsCard = document.getElementById('bookDetailsCard');
+
+      statusDisplay.className = 'status-idle rounded-2xl mb-6 shadow-2xl p-12 text-center min-h-80';
+      statusIcon.textContent = '📱';
+      statusMessage.textContent = 'Ready to Scan';
+      statusDetail.textContent = 'Please enter book ID or scan QR code';
+      bookDetailsCard.classList.add('hidden');
+    }
+
+    function displayError(message) {
+      const statusDisplay = document.getElementById('statusDisplay');
+      const statusIcon = document.getElementById('statusIcon');
+      const statusMessage = document.getElementById('statusMessage');
+      const statusDetail = document.getElementById('statusDetail');
+
+      statusDisplay.className = 'status-alarm rounded-2xl mb-6 shadow-2xl p-12 text-center min-h-80';
+      statusIcon.textContent = '⚠️';
+      statusMessage.textContent = 'ERROR';
+      statusDetail.textContent = message;
+
+      setTimeout(resetDisplay, 3000);
+    }
+
+    function addToHistory(data) {
+      const entry = {
+        timestamp: new Date().toLocaleString(),
+        status: data.status,
+        bookTitle: data.book?.title || 'Unknown',
+        borrowedBy: data.book?.borrowedBy || null
+      };
+      
+      scanHistory.unshift(entry);
+      if (scanHistory.length > 10) scanHistory.pop();
+      updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+      const historyLog = document.getElementById('historyLog');
+      
+      if (scanHistory.length === 0) {
+        historyLog.innerHTML = '<p class="text-gray-500 text-center">No scans yet</p>';
+        return;
+      }
+      
+      historyLog.innerHTML = scanHistory.map(entry => `
+        <div class="flex items-center justify-between p-3 ${entry.status === 'APPROVED' ? 'bg-green-50 border-l-4 border-green-500' : 'bg-red-50 border-l-4 border-red-500'} rounded">
+          <div class="flex-1">
+            <div class="font-semibold text-gray-800">${entry.bookTitle}</div>
+            <div class="text-sm text-gray-600">${entry.borrowedBy || 'Not borrowed'}</div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold ${entry.status === 'APPROVED' ? 'text-green-600' : 'text-red-600'}">${entry.status}</div>
+            <div class="text-xs text-gray-500">${entry.timestamp}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function verifyManualEntry() {
+      const bookId = document.getElementById('manualBookId').value.trim();
+      if (bookId) {
+        verifyBook(bookId);
+        document.getElementById('manualBookId').value = '';
+      }
+    }
+
+    async function startScanning() {
+      const scannerSection = document.getElementById('scannerSection');
+      const startBtn = document.getElementById('startScanBtn');
+      const stopBtn = document.getElementById('stopScanBtn');
+      
+      // Show loading message
+      startBtn.innerHTML = '⏳ Requesting Camera Permission...';
+      startBtn.disabled = true;
+      
+      try {
+        // Request camera permission BEFORE showing scanner
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: "environment" } 
+        });
+        
+        // Permission granted! Stop the test stream
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Now show the scanner UI
+        scannerSection.classList.remove('hidden');
+        startBtn.classList.add('hidden');
+        stopBtn.classList.remove('hidden');
+        startBtn.disabled = false;
+        startBtn.innerHTML = '📷 Start Camera';
+        
+        // Initialize the QR scanner
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        
+        await html5QrcodeScanner.start(
+          { facingMode: "environment" },
+          { 
+            fps: 15, // Increased from 10 for faster scanning
+            qrbox: { width: 300, height: 300 }, // Larger scanning area
+            aspectRatio: 1.0
+          },
+          (decodedText) => {
+            console.log('QR Code detected:', decodedText);
+            // Try to extract book ID from JSON QR code
+            let bookId = decodedText;
+            try {
+              const qrData = JSON.parse(decodedText);
+              bookId = qrData.id || decodedText;
+            } catch (e) {
+              // Use as-is
+            }
+            verifyBook(bookId);
+          },
+          (error) => {
+            // Ignore scan errors (too verbose)
+          }
+        );
+        
+        console.log('Camera scanner started successfully');
+        
+      } catch (err) {
+        console.error('Camera error:', err);
+        
+        // Reset button
+        startBtn.disabled = false;
+        startBtn.innerHTML = '📷 Start Camera';
+        startBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        
+        // Show user-friendly error message
+        let errorMsg = 'Camera access denied or not available.';
+        
+        if (err.name === 'NotAllowedError') {
+          errorMsg = '❌ Camera permission denied. Please:\n\n1. Allow camera access in browser settings\n2. Reload the page\n3. Or use manual entry below';
+        } else if (err.name === 'NotFoundError') {
+          errorMsg = '❌ No camera found on this device. Please use manual entry below.';
+        } else if (err.name === 'NotReadableError') {
+          errorMsg = '❌ Camera is being used by another app. Please close other apps and try again.';
+        }
+        
+        alert(errorMsg);
+      }
+    }
+
+    function stopScanning() {
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+          html5QrcodeScanner.clear();
+          html5QrcodeScanner = null;
+        });
+      }
+      
+      document.getElementById('scannerSection').classList.add('hidden');
+      document.getElementById('startScanBtn').classList.remove('hidden');
+      document.getElementById('stopScanBtn').classList.add('hidden');
+    }
+
+    function playAlarmSound() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'square';
+        gainNode.gain.value = 0.3;
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+      } catch (e) {
+        console.log('Audio not available');
+      }
+    }
+
+    function playSuccessSound() {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 523.25;
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.2;
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2);
+      } catch (e) {
+        console.log('Audio not available');
+      }
+    }
+  </script>
+</body>
+</html>

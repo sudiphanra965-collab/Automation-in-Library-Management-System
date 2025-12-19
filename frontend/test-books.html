@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Books API</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    .book-card {
+      background: white;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>📚 Books API Test Page</h1>
+  
+  <div class="status info" id="api-base">
+    <strong>API Base URL:</strong> <span id="api-url">Detecting...</span>
+  </div>
+  
+  <div>
+    <button onclick="testAPI()">Test API Connection</button>
+    <button onclick="loadAllBooks()">Load All Books</button>
+    <button onclick="clearResults()">Clear Results</button>
+  </div>
+  
+  <div id="results"></div>
+  
+  <script>
+    // Dynamic API base URL detection
+    function getAPIBase() {
+      const hostname = window.location.hostname;
+      const protocol = window.location.protocol;
+      const currentPort = window.location.port;
+      
+      // If already on the backend port, use relative URLs
+      if (currentPort === '5000' || currentPort === '5443') {
+        return '';
+      }
+      
+      // Match protocol - if on HTTPS, use HTTPS backend
+      const isHTTPS = protocol === 'https:';
+      const port = isHTTPS ? '5443' : '5000';
+      const proto = isHTTPS ? 'https' : 'http';
+      
+      // For localhost (desktop)
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `${proto}://localhost:${port}`;
+      }
+      
+      // For mobile/network access
+      return `${proto}://${hostname}:${port}`;
+    }
+    
+    const API_BASE = getAPIBase();
+    document.getElementById('api-url').textContent = API_BASE || '(relative URLs)';
+    
+    function log(message, type = 'info') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `status ${type}`;
+      div.innerHTML = message;
+      results.appendChild(div);
+      console.log(message);
+    }
+    
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+    }
+    
+    async function testAPI() {
+      clearResults();
+      log('🔍 Testing API connection...', 'info');
+      
+      try {
+        const url = `${API_BASE}/api/books`;
+        log(`📡 Fetching: ${url}`, 'info');
+        
+        const response = await fetch(url);
+        log(`📊 Response Status: ${response.status} ${response.statusText}`, 
+            response.ok ? 'success' : 'error');
+        
+        if (!response.ok) {
+          const text = await response.text();
+          log(`❌ Error Response: ${text}`, 'error');
+          return;
+        }
+        
+        const data = await response.json();
+        log(`✅ Success! Received ${data.length} books`, 'success');
+        log(`<pre>${JSON.stringify(data[0], null, 2)}</pre>`, 'info');
+        
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+        console.error('Full error:', error);
+      }
+    }
+    
+    async function loadAllBooks() {
+      clearResults();
+      log('📚 Loading all books...', 'info');
+      
+      try {
+        const url = `${API_BASE}/api/books`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const books = await response.json();
+        log(`✅ Loaded ${books.length} books successfully!`, 'success');
+        
+        books.forEach((book, index) => {
+          const card = document.createElement('div');
+          card.className = 'book-card';
+          card.innerHTML = `
+            <h3>${index + 1}. ${book.title}</h3>
+            <p><strong>Author:</strong> ${book.author}</p>
+            <p><strong>Category:</strong> ${book.category}</p>
+            <p><strong>ISBN:</strong> ${book.isbn}</p>
+            <p><strong>Available:</strong> ${book.available ? '✅ Yes' : '❌ No'}</p>
+            <p><strong>Description:</strong> ${book.description}</p>
+          `;
+          document.getElementById('results').appendChild(card);
+        });
+        
+      } catch (error) {
+        log(`❌ Error loading books: ${error.message}`, 'error');
+        console.error('Full error:', error);
+      }
+    }
+    
+    // Auto-test on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      log('🚀 Page loaded. Ready to test!', 'success');
+      setTimeout(testAPI, 500);
+    });
+  </script>
+</body>
+</html>

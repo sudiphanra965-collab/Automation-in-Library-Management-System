@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Code Fix - Inline</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+</head>
+<body>
+  <h1>QR Code Inline Fix Test</h1>
+  <button onclick="testQR()">Generate QR for Book 1</button>
+  <button onclick="testDownload()">Download QR</button>
+  <button onclick="testPrint()">Print QR</button>
+  <div id="result"></div>
+  <div id="qr-display"></div>
+  
+  <script>
+    // Login first
+    async function login() {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: 'kj', password: 'kj'})
+      });
+      const data = await res.json();
+      localStorage.setItem('token', data.token);
+      return data.token;
+    }
+    
+    async function testQR() {
+      const token = localStorage.getItem('token') || await login();
+      
+      const res = await fetch('/api/books/1/qrcode', {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await res.json();
+      
+      // Store in window
+      window.qrData = {
+        image: data.qrCode,
+        title: data.bookData.title,
+        author: data.bookData.author
+      };
+      
+      document.getElementById('result').innerHTML = 
+        '<p style="color:green">✅ QR Generated: ' + data.bookData.title + '</p>' +
+        '<p>Data stored in window.qrData</p>';
+      
+      document.getElementById('qr-display').innerHTML = 
+        '<img src="' + data.qrCode + '" style="max-width:300px;border:2px solid #ddd;padding:10px"/>';
+      
+      console.log('QR Data:', window.qrData);
+    }
+    
+    function testDownload() {
+      if (!window.qrData) {
+        alert('Generate QR first!');
+        return;
+      }
+      
+      const link = document.createElement('a');
+      link.href = window.qrData.image;
+      link.download = 'qrcode-' + window.qrData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      document.getElementById('result').innerHTML += '<p style="color:green">✅ Download initiated!</p>';
+    }
+    
+    function testPrint() {
+      if (!window.qrData) {
+        alert('Generate QR first!');
+        return;
+      }
+      
+      const w = window.open('', '_blank');
+      w.document.write('<html><head><title>QR Code</title></head><body style="text-align:center;padding:20px"><h2>' + 
+        window.qrData.title + '</h2><p>by ' + window.qrData.author + 
+        '</p><img src="' + window.qrData.image + '" style="max-width:400px"/>' +
+        '<p><button onclick="window.print()">Print</button></p></body></html>');
+      w.document.close();
+      
+      document.getElementById('result').innerHTML += '<p style="color:green">✅ Print window opened!</p>';
+    }
+  </script>
+</body>
+</html>

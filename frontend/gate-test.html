@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Gate Security - Test & Demo v2.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-4xl font-bold text-center mb-8 text-gray-800">🚪 Gate Security System - Test Demo</h1>
+    
+    <!-- Quick Test Section -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-2xl font-bold mb-4 text-gray-800">🧪 Quick Test</h2>
+      <p class="text-gray-600 mb-4">Enter a book ID to simulate gate scanning:</p>
+      
+      <div class="flex gap-3 mb-4">
+        <input 
+          type="number" 
+          id="testBookId" 
+          placeholder="Enter Book ID (e.g., 1, 2, 3...)" 
+          class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+        />
+        <button onclick="testGate()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition-colors">
+          Test Gate
+        </button>
+      </div>
+      
+      <div id="testResult" class="hidden"></div>
+    </div>
+
+    <!-- Scenarios Section -->
+    <div class="grid md:grid-cols-2 gap-6 mb-6">
+      <!-- Scenario 1 -->
+      <div class="bg-green-50 border-2 border-green-200 rounded-lg p-6">
+        <h3 class="text-xl font-bold text-green-800 mb-3">✅ Scenario 1: Authorized Exit</h3>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700 mb-4">
+          <li>Admin issues book to user</li>
+          <li>Book marked as borrowed in DB</li>
+          <li>User scans QR at gate</li>
+          <li><strong class="text-green-600">Result: APPROVED ✅</strong></li>
+        </ol>
+        <button onclick="simulateApproved()" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors">
+          Simulate This Scenario
+        </button>
+      </div>
+
+      <!-- Scenario 2 -->
+      <div class="bg-red-50 border-2 border-red-200 rounded-lg p-6">
+        <h3 class="text-xl font-bold text-red-800 mb-3">🚨 Scenario 2: Theft Attempt</h3>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700 mb-4">
+          <li>User takes book without borrowing</li>
+          <li>Book still marked as available</li>
+          <li>User tries to scan QR at gate</li>
+          <li><strong class="text-red-600">Result: ALARM 🚨</strong></li>
+        </ol>
+        <button onclick="simulateAlarm()" class="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-medium transition-colors">
+          Simulate This Scenario
+        </button>
+      </div>
+    </div>
+
+    <!-- API Documentation -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <h2 class="text-2xl font-bold mb-4 text-gray-800">📡 API Endpoint</h2>
+      
+      <div class="bg-gray-50 rounded p-4 mb-4">
+        <p class="font-mono text-sm mb-2"><strong>GET</strong> /api/gate/verify/:bookId</p>
+        <p class="text-gray-600 text-sm">Verifies if a book is authorized for exit</p>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <h4 class="font-bold text-green-700 mb-2">✅ Success Response (Borrowed)</h4>
+          <pre class="bg-green-50 border border-green-200 rounded p-3 text-xs overflow-x-auto"><code>{
+  "allowed": true,
+  "status": "APPROVED",
+  "message": "Exit Approved",
+  "book": {
+    "title": "...",
+    "borrowedBy": "username"
+  }
+}</code></pre>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-red-700 mb-2">🚨 Alarm Response (Not Borrowed)</h4>
+          <pre class="bg-red-50 border border-red-200 rounded p-3 text-xs overflow-x-auto"><code>{
+  "allowed": false,
+  "status": "ALARM",
+  "message": "Unauthorized removal",
+  "book": {
+    "title": "...",
+    "borrowedBy": null
+  }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- How to Use -->
+    <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
+      <h2 class="text-2xl font-bold mb-4 text-blue-800">📱 How to Use in Production</h2>
+      
+      <div class="space-y-3 text-gray-700">
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">1️⃣</span>
+          <div>
+            <strong>Setup Gate Scanner:</strong>
+            <p class="text-sm">Open <code class="bg-blue-100 px-2 py-1 rounded">/gate-scanner.html</code> on a tablet at the library exit gate</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">2️⃣</span>
+          <div>
+            <strong>Print QR Codes:</strong>
+            <p class="text-sm">Use the "📱 QR Code" button on each book to generate and print QR stickers</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">3️⃣</span>
+          <div>
+            <strong>Issue Books Properly:</strong>
+            <p class="text-sm">Always use the admin panel to issue books to users</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">4️⃣</span>
+          <div>
+            <strong>Scan at Exit:</strong>
+            <p class="text-sm">Users scan book QR codes when leaving - system automatically approves or alarms</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex gap-3">
+        <a href="javascript:void(0)" onclick="openGateScannerHTTPS()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold text-center transition-colors">
+          🚪 Open Gate Scanner
+        </a>
+        <a href="/index.html" target="_blank" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold text-center transition-colors">
+          📚 Open Library System
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Dynamic API base URL that works on both desktop and mobile
+    function getAPIBase() {
+      if (window.location.origin.includes(':5000')) return '';
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:5000';
+      }
+      return 'http://10.237.19.96:5000';
+    }
+    const API_BASE = getAPIBase();
+
+    // Function to detect if user is on a mobile device
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+             (window.innerWidth <= 768);
+    }
+
+    // Function to open Gate Scanner with automatic HTTPS redirect for camera access (mobile only)
+    function openGateScannerHTTPS() {
+      const isHTTP = window.location.protocol === 'http:';
+      const isMobile = isMobileDevice();
+      
+      // Only redirect to HTTPS if on mobile device (for camera access)
+      if (isHTTP && isMobile) {
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        let httpsURL = isLocalhost ? 'https://localhost:5443/gate-scanner.html' : 'https://10.237.19.96:5443/gate-scanner.html';
+        window.open(httpsURL, '_blank');
+      } else {
+        // Desktop or already on HTTPS - just open normally
+        window.open('/gate-scanner.html', '_blank');
+      }
+    }
+
+    async function testGate() {
+      const bookId = document.getElementById('testBookId').value;
+      const resultDiv = document.getElementById('testResult');
+      
+      if (!bookId) {
+        alert('Please enter a book ID');
+        return;
+      }
+
+      resultDiv.classList.remove('hidden');
+      resultDiv.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div><p class="mt-2 text-gray-600">Verifying...</p></div>';
+
+      try {
+        const response = await fetch(`${API_BASE}/api/gate/verify/${bookId}`);
+        const result = await response.json();
+        
+        displayResult(result);
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-4 mt-4"><p class="text-red-600">Error: ${error.message}</p></div>`;
+      }
+    }
+
+    function displayResult(result) {
+      const resultDiv = document.getElementById('testResult');
+      
+      if (result.allowed) {
+        resultDiv.innerHTML = `
+          <div class="bg-green-50 border-2 border-green-500 rounded-lg p-6 mt-4 animate-pulse">
+            <div class="text-center mb-4">
+              <div class="text-6xl mb-2">✅</div>
+              <h3 class="text-2xl font-bold text-green-800">EXIT APPROVED</h3>
+            </div>
+            <div class="bg-white rounded p-4 space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="font-semibold">Status:</span>
+                <span class="text-green-600 font-bold">${result.status}</span>
+              </div>
+              ${result.book ? `
+                <div class="flex justify-between">
+                  <span class="font-semibold">Book:</span>
+                  <span>${result.book.title}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="font-semibold">Borrowed By:</span>
+                  <span class="text-green-600 font-bold">${result.book.borrowedBy}</span>
+                </div>
+              ` : ''}
+              <div class="pt-2 border-t">
+                <span class="text-green-700">✓ ${result.message}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        resultDiv.innerHTML = `
+          <div class="bg-red-50 border-2 border-red-500 rounded-lg p-6 mt-4 animate-pulse">
+            <div class="text-center mb-4">
+              <div class="text-6xl mb-2">🚨</div>
+              <h3 class="text-2xl font-bold text-red-800">SECURITY ALARM!</h3>
+            </div>
+            <div class="bg-white rounded p-4 space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="font-semibold">Status:</span>
+                <span class="text-red-600 font-bold">${result.status}</span>
+              </div>
+              ${result.book ? `
+                <div class="flex justify-between">
+                  <span class="font-semibold">Book:</span>
+                  <span>${result.book.title}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="font-semibold">Status:</span>
+                  <span class="text-red-600 font-bold">NOT BORROWED</span>
+                </div>
+              ` : ''}
+              <div class="pt-2 border-t">
+                <span class="text-red-700">⚠ ${result.message}</span>
+              </div>
+            </div>
+          </div>
+        `;
+        playAlarmSound();
+      }
+    }
+
+    async function simulateApproved() {
+      // This will need a real borrowed book ID
+      document.getElementById('testBookId').value = '1';
+      alert('📝 Note: Book ID 1 must be borrowed for this to show APPROVED.\n\nIf you see ALARM, it means book 1 is not currently borrowed.\nGo to the admin panel and issue book 1 to a user first.');
+      testGate();
+    }
+
+    async function simulateAlarm() {
+      // This will need a real available book ID
+      document.getElementById('testBookId').value = '2';
+      alert('📝 Note: Book ID 2 must be available (not borrowed) for this to show ALARM.\n\nIf you see APPROVED, it means book 2 is currently borrowed.');
+      testGate();
+    }
+
+    function playAlarmSound() {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'square';
+      gainNode.gain.value = 0.3;
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+    }
+  </script>
+</body>
+</html>

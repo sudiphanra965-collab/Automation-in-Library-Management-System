@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test My Books API</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #4A90E2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #357ABD;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .info {
+      color: blue;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Test My Books API</h1>
+    <p>This page tests the <code>/api/user/borrowed-books</code> endpoint directly.</p>
+    
+    <div>
+      <label>Token (from localStorage):</label>
+      <input type="text" id="tokenInput" style="width: 100%; padding: 8px; margin: 10px 0;" readonly>
+    </div>
+    
+    <button onclick="testAPI()">🚀 Test API</button>
+    <button onclick="clearCache()">🗑️ Clear Cache & Reload</button>
+    
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://localhost:5443';
+    
+    // Get token from localStorage
+    window.onload = function() {
+      const token = localStorage.getItem('token');
+      document.getElementById('tokenInput').value = token || 'No token found - please login first';
+      
+      if (!token) {
+        showResult('⚠️ No token found. Please login first at https://localhost:5443', 'error');
+      }
+    };
+    
+    async function testAPI() {
+      const resultDiv = document.getElementById('result');
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showResult('❌ ERROR: No authentication token found.\n\nPlease:\n1. Go to https://localhost:5443\n2. Login with your account\n3. Come back to this page\n4. Click "Test API" again', 'error');
+        return;
+      }
+      
+      showResult('🔄 Testing API endpoint...\n\nURL: ' + API_BASE + '/api/user/borrowed-books\nMethod: GET\nToken: ' + token.substring(0, 20) + '...', 'info');
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/user/borrowed-books`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        showResult('📡 Response received!\n\nStatus: ' + response.status + '\nStatus Text: ' + response.statusText, 'info');
+        
+        const contentType = response.headers.get('content-type');
+        showResult('Content-Type: ' + contentType, 'info');
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          showResult('❌ ERROR: HTTP ' + response.status + '\n\nResponse:\n' + errorText, 'error');
+          return;
+        }
+        
+        if (!contentType || !contentType.includes('application/json')) {
+          const htmlText = await response.text();
+          showResult('❌ ERROR: Server returned HTML instead of JSON!\n\nThis means the API endpoint is not working.\n\nResponse (first 500 chars):\n' + htmlText.substring(0, 500), 'error');
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          showResult('✅ SUCCESS!\n\nAPI is working correctly!\n\nBooks found: ' + data.length + '\n\nData:\n' + JSON.stringify(data, null, 2), 'success');
+        } else {
+          showResult('⚠️ Unexpected response format:\n\n' + JSON.stringify(data, null, 2), 'error');
+        }
+        
+      } catch (error) {
+        showResult('❌ ERROR: ' + error.message + '\n\nFull error:\n' + error.stack, 'error');
+      }
+    }
+    
+    function showResult(message, type) {
+      const resultDiv = document.getElementById('result');
+      const existingContent = resultDiv.innerHTML;
+      const timestamp = new Date().toLocaleTimeString();
+      const newMessage = `[${timestamp}] ${message}\n\n`;
+      
+      if (existingContent) {
+        resultDiv.innerHTML = existingContent + '---\n\n' + newMessage;
+      } else {
+        resultDiv.innerHTML = newMessage;
+      }
+      
+      resultDiv.className = type;
+      resultDiv.scrollTop = resultDiv.scrollHeight;
+    }
+    
+    function clearCache() {
+      if (confirm('This will clear cache and reload. Continue?')) {
+        // Clear all caches
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (let name of names) caches.delete(name);
+          });
+        }
+        
+        // Reload with cache bypass
+        window.location.reload(true);
+      }
+    }
+  </script>
+</body>
+</html>

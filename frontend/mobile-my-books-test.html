@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Books - Mobile Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: Arial, sans-serif; 
+      padding: 15px; 
+      background: #f5f5f5;
+      font-size: 14px;
+    }
+    .header { 
+      background: #2563eb; 
+      color: white; 
+      padding: 15px; 
+      border-radius: 8px; 
+      margin-bottom: 15px;
+    }
+    .section { 
+      background: white; 
+      padding: 15px; 
+      margin-bottom: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button { 
+      background: #2563eb; 
+      color: white; 
+      border: none; 
+      padding: 12px 20px; 
+      border-radius: 6px; 
+      font-size: 14px; 
+      width: 100%;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+    button:active { background: #1d4ed8; }
+    .success { color: #10b981; font-weight: bold; }
+    .error { color: #ef4444; font-weight: bold; }
+    .info { color: #3b82f6; }
+    #log { 
+      background: #1e293b; 
+      color: #10b981; 
+      padding: 10px; 
+      border-radius: 6px; 
+      font-family: monospace; 
+      font-size: 11px; 
+      max-height: 300px; 
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .book-card {
+      background: #f9fafb;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 6px;
+      border-left: 4px solid #2563eb;
+    }
+    .book-title { font-weight: bold; color: #1f2937; margin-bottom: 5px; }
+    .book-author { color: #6b7280; font-size: 13px; }
+    .book-date { color: #9ca3af; font-size: 12px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📚 My Books - Mobile Test</h1>
+    <p style="font-size:12px;margin-top:5px;opacity:0.9">Diagnostic & Fix Tool</p>
+  </div>
+  
+  <div class="section">
+    <h3>Step 1: Check Connection</h3>
+    <button onclick="testConnection()">🔍 Test Server Connection</button>
+    <div id="connection-status"></div>
+  </div>
+  
+  <div class="section">
+    <h3>Step 2: Login</h3>
+    <input type="text" id="username" placeholder="Username" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ddd;border-radius:4px">
+    <input type="password" id="password" placeholder="Password" style="width:100%;padding:10px;margin:5px 0;border:1px solid #ddd;border-radius:4px">
+    <button onclick="login()">🔐 Login</button>
+    <div id="login-status"></div>
+  </div>
+  
+  <div class="section">
+    <h3>Step 3: Load My Books</h3>
+    <button onclick="loadMyBooks()">📖 Load My Borrowed Books</button>
+    <div id="books-status"></div>
+    <div id="books-list"></div>
+  </div>
+  
+  <div class="section">
+    <h3>Debug Log</h3>
+    <button onclick="clearLog()" style="background:#6b7280">🗑️ Clear Log</button>
+    <div id="log"></div>
+  </div>
+  
+  <script>
+    let token = null;
+    
+    function log(msg, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const colors = {
+        success: '#10b981',
+        error: '#ef4444',
+        info: '#3b82f6',
+        warning: '#f59e0b'
+      };
+      logDiv.innerHTML += `<div style="color:${colors[type] || colors.info}">[${time}] ${msg}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+    
+    async function testConnection() {
+      log('🔍 Testing server connection...', 'info');
+      document.getElementById('connection-status').innerHTML = '<p class="info">Testing...</p>';
+      
+      try {
+        // Try multiple possible URLs
+        const urls = [
+          window.location.origin,
+          'https://localhost:5443',
+          'https://10.246.76.157:5443'
+        ];
+        
+        log(`Current origin: ${window.location.origin}`, 'info');
+        
+        for (const url of urls) {
+          try {
+            log(`Testing: ${url}`, 'info');
+            const res = await fetch(`${url}/api/books`, {
+              method: 'GET',
+              headers: {'Content-Type': 'application/json'}
+            });
+            
+            if (res.ok) {
+              log(`✅ Connected to: ${url}`, 'success');
+              document.getElementById('connection-status').innerHTML = 
+                `<p class="success">✅ Server Connected: ${url}</p>`;
+              return;
+            }
+          } catch (e) {
+            log(`❌ Failed: ${url} - ${e.message}`, 'error');
+          }
+        }
+        
+        throw new Error('Could not connect to any server');
+        
+      } catch (error) {
+        log(`❌ Connection failed: ${error.message}`, 'error');
+        document.getElementById('connection-status').innerHTML = 
+          `<p class="error">❌ Connection Failed: ${error.message}</p>`;
+      }
+    }
+    
+    async function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        alert('Please enter username and password');
+        return;
+      }
+      
+      log(`🔐 Logging in as ${username}...`, 'info');
+      document.getElementById('login-status').innerHTML = '<p class="info">Logging in...</p>';
+      
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username, password })
+        });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        
+        const data = await res.json();
+        token = data.token;
+        localStorage.setItem('token', token);
+        
+        log(`✅ Login successful!`, 'success');
+        log(`Token: ${token.substring(0, 30)}...`, 'info');
+        
+        document.getElementById('login-status').innerHTML = 
+          `<p class="success">✅ Logged in as ${username}</p>`;
+        
+      } catch (error) {
+        log(`❌ Login failed: ${error.message}`, 'error');
+        document.getElementById('login-status').innerHTML = 
+          `<p class="error">❌ Login Failed: ${error.message}</p>`;
+      }
+    }
+    
+    async function loadMyBooks() {
+      token = token || localStorage.getItem('token');
+      
+      if (!token) {
+        alert('Please login first!');
+        return;
+      }
+      
+      log('📚 Loading borrowed books...', 'info');
+      document.getElementById('books-status').innerHTML = '<p class="info">Loading...</p>';
+      document.getElementById('books-list').innerHTML = '';
+      
+      try {
+        const res = await fetch('/api/user/borrowed-books', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        log(`Response status: ${res.status}`, 'info');
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        
+        const books = await res.json();
+        log(`✅ Loaded ${books.length} books`, 'success');
+        
+        document.getElementById('books-status').innerHTML = 
+          `<p class="success">✅ Found ${books.length} borrowed books</p>`;
+        
+        if (books.length === 0) {
+          document.getElementById('books-list').innerHTML = 
+            '<p style="color:#6b7280;text-align:center;padding:20px">No borrowed books</p>';
+          return;
+        }
+        
+        // Display books
+        let html = '';
+        books.forEach(book => {
+          html += `
+            <div class="book-card">
+              <div class="book-title">📖 ${book.title}</div>
+              <div class="book-author">by ${book.author}</div>
+              <div class="book-date">Borrowed: ${new Date(book.borrow_date).toLocaleDateString()}</div>
+            </div>
+          `;
+        });
+        
+        document.getElementById('books-list').innerHTML = html;
+        
+      } catch (error) {
+        log(`❌ Failed to load books: ${error.message}`, 'error');
+        document.getElementById('books-status').innerHTML = 
+          `<p class="error">❌ Failed: ${error.message}</p>`;
+      }
+    }
+    
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      log('🚀 Mobile My Books Test loaded', 'success');
+      log(`User Agent: ${navigator.userAgent}`, 'info');
+      log(`Screen: ${window.screen.width}x${window.screen.height}`, 'info');
+      
+      const savedToken = localStorage.getItem('token');
+      if (savedToken) {
+        token = savedToken;
+        log('✅ Found saved token', 'success');
+        document.getElementById('login-status').innerHTML = 
+          '<p class="success">✅ Already logged in (token found)</p>';
+      }
+    });
+  </script>
+</body>
+</html>

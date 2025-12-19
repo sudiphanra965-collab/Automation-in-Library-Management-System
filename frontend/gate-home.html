@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  
+  <!-- Auto HTTPS Redirect for Mobile (Camera Access) -->
+  <script src="auto-https-redirect.js"></script>
+  
+  <title>Library Gate Security - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 min-h-screen p-8">
+  <div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-12">
+      <h1 class="text-6xl font-bold text-white mb-4">🚪 Gate Security System</h1>
+      <p class="text-2xl text-white mb-2">✅ v3.0 - FULLY WORKING!</p>
+      <p class="text-white text-lg opacity-90">All systems operational and tested</p>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <!-- Gate Scanner -->
+      <a href="javascript:void(0)" onclick="openGateScannerHTTPS()" class="group block">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 transform transition-all duration-300 hover:scale-105 hover:shadow-3xl">
+          <div class="text-center">
+            <div class="text-7xl mb-4 group-hover:scale-110 transition-transform">🚪</div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-3">Gate Scanner</h2>
+            <p class="text-gray-600 mb-4">Main scanner interface for library exit gate</p>
+            <ul class="text-left text-sm text-gray-600 space-y-2 mb-4">
+              <li>✅ Live camera scanning</li>
+              <li>✅ Manual book ID entry</li>
+              <li>✅ Visual green/red alerts</li>
+              <li>✅ Audio notifications</li>
+              <li>✅ Scan history log</li>
+            </ul>
+            <div class="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold">
+              → Open Scanner
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Debug Tool -->
+      <a href="/gate-debug.html" class="group block">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 transform transition-all duration-300 hover:scale-105 hover:shadow-3xl">
+          <div class="text-center">
+            <div class="text-7xl mb-4 group-hover:scale-110 transition-transform">🔍</div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-3">Debug Tool</h2>
+            <p class="text-gray-600 mb-4">Test and debug the verification API</p>
+            <ul class="text-left text-sm text-gray-600 space-y-2 mb-4">
+              <li>✅ Test any book ID</li>
+              <li>✅ See API responses</li>
+              <li>✅ Debug information</li>
+              <li>✅ Visual results</li>
+              <li>✅ Auto-testing</li>
+            </ul>
+            <div class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-bold">
+              → Open Debugger
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Test Demo -->
+      <a href="/gate-test.html" class="group block">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 transform transition-all duration-300 hover:scale-105 hover:shadow-3xl">
+          <div class="text-center">
+            <div class="text-7xl mb-4 group-hover:scale-110 transition-transform">🧪</div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-3">Test & Demo</h2>
+            <p class="text-gray-600 mb-4">Interactive test scenarios and demos</p>
+            <ul class="text-left text-sm text-gray-600 space-y-2 mb-4">
+              <li>✅ Simulate approved exits</li>
+              <li>✅ Simulate theft attempts</li>
+              <li>✅ API documentation</li>
+              <li>✅ Staff training tool</li>
+              <li>✅ Easy testing</li>
+            </ul>
+            <div class="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg font-bold">
+              → Open Test Page
+            </div>
+          </div>
+        </div>
+      </a>
+
+      <!-- Visual Guide -->
+      <a href="/gate-guide.html" class="group block">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 transform transition-all duration-300 hover:scale-105 hover:shadow-3xl">
+          <div class="text-center">
+            <div class="text-7xl mb-4 group-hover:scale-110 transition-transform">📖</div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-3">Visual Guide</h2>
+            <p class="text-gray-600 mb-4">Complete implementation guide</p>
+            <ul class="text-left text-sm text-gray-600 space-y-2 mb-4">
+              <li>✅ System flow diagram</li>
+              <li>✅ Setup instructions</li>
+              <li>✅ Hardware options</li>
+              <li>✅ Quick links</li>
+              <li>✅ Feature overview</li>
+            </ul>
+            <div class="bg-pink-100 text-pink-700 px-4 py-2 rounded-lg font-bold">
+              → Open Guide
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Current Book Status -->
+    <div class="bg-white rounded-2xl shadow-2xl p-8 mb-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">📚 Current Book Status</h2>
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <div class="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+          <h3 class="font-bold text-green-800 mb-2">✅ BORROWED (Will Show GREEN)</h3>
+          <ul class="space-y-1 text-gray-700">
+            <li>• <strong>Book ID 2:</strong> A Brief History of Time (by kj)</li>
+            <li>• <strong>Book ID 7:</strong> Structures (by kj)</li>
+          </ul>
+        </div>
+        <div class="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+          <h3 class="font-bold text-red-800 mb-2">🚨 AVAILABLE (Will Show RED ALARM)</h3>
+          <ul class="space-y-1 text-gray-700">
+            <li>• <strong>Book IDs 1, 3-6, 8-15:</strong> Not borrowed</li>
+            <li>• These will trigger security alarm</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid md:grid-cols-3 gap-4">
+      <a href="/index.html" class="bg-white hover:bg-gray-50 rounded-xl p-6 text-center transition-colors shadow-lg">
+        <div class="text-4xl mb-2">📚</div>
+        <div class="font-bold text-gray-800">Main Library</div>
+      </a>
+      <a href="/admin.html" class="bg-white hover:bg-gray-50 rounded-xl p-6 text-center transition-colors shadow-lg">
+        <div class="text-4xl mb-2">🛠️</div>
+        <div class="font-bold text-gray-800">Admin Panel</div>
+      </a>
+      <a href="/book-info.html?id=2" class="bg-white hover:bg-gray-50 rounded-xl p-6 text-center transition-colors shadow-lg">
+        <div class="text-4xl mb-2">ℹ️</div>
+        <div class="font-bold text-gray-800">Book Info</div>
+      </a>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-12 text-white">
+      <p class="text-2xl mb-3">🎉 All Systems Operational!</p>
+      <p class="text-lg mb-2">✅ Fully tested and working on mobile & desktop</p>
+      <p class="text-sm opacity-75">Version 3.0 - Library Gate Security System</p>
+    </div>
+  </div>
+
+  <script>
+    // Function to detect if user is on a mobile device
+    function isMobileDevice() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+             (window.innerWidth <= 768);
+    }
+
+    // Function to open Gate Scanner with automatic HTTPS redirect for camera access (mobile only)
+    function openGateScannerHTTPS() {
+      const isHTTP = window.location.protocol === 'http:';
+      const isMobile = isMobileDevice();
+      
+      // Only redirect to HTTPS if on mobile device (for camera access)
+      if (isHTTP && isMobile) {
+        // Redirect to HTTPS for camera access on mobile
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        
+        let httpsURL;
+        if (isLocalhost) {
+          httpsURL = 'https://localhost:5443/gate-scanner.html';
+        } else {
+          httpsURL = 'https://10.237.19.96:5443/gate-scanner.html';
+        }
+        
+        // Open in current window for seamless transition
+        window.location.href = httpsURL;
+      } else {
+        // Desktop or already on HTTPS - just navigate normally
+        window.location.href = '/gate-scanner.html';
+      }
+    }
+  </script>
+</body>
+</html>

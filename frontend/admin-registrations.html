@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Registrations - Admin Panel</title>
+  <script src="libs/tailwind.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .registration-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    .registration-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    .photo-container {
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #e5e7eb;
+    }
+    .photo-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .id-proof-container {
+      width: 100%;
+      max-width: 400px;
+      height: 250px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #e5e7eb;
+      cursor: pointer;
+    }
+    .id-proof-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-approved { background: #d1fae5; color: #065f46; }
+    .badge-rejected { background: #fee2e2; color: #991b1b; }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      max-width: 90%;
+      max-height: 90%;
+    }
+  </style>
+</head>
+<body>
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">👥 Student Registrations</h1>
+          <p class="text-gray-600">Review and manage student registration requests</p>
+        </div>
+        <button onclick="window.location.href='/admin.html'" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
+          ← Back to Admin Panel
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-600 text-sm">Pending</p>
+            <p id="pendingCount" class="text-3xl font-bold text-yellow-600">0</p>
+          </div>
+          <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">⏳</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-600 text-sm">Approved</p>
+            <p id="approvedCount" class="text-3xl font-bold text-green-600">0</p>
+          </div>
+          <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">✅</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-gray-600 text-sm">Rejected</p>
+            <p id="rejectedCount" class="text-3xl font-bold text-red-600">0</p>
+          </div>
+          <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+            <span class="text-2xl">❌</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="bg-white rounded-lg shadow-lg p-4 mb-6">
+      <div class="flex gap-2">
+        <button onclick="filterRegistrations('all')" id="filterAll" class="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium">
+          All
+        </button>
+        <button onclick="filterRegistrations('pending')" id="filterPending" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-medium">
+          Pending
+        </button>
+        <button onclick="filterRegistrations('approved')" id="filterApproved" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-medium">
+          Approved
+        </button>
+        <button onclick="filterRegistrations('rejected')" id="filterRejected" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-medium">
+          Rejected
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="text-center text-white text-xl py-12">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+      <p>Loading registrations...</p>
+    </div>
+
+    <!-- Registrations List -->
+    <div id="registrationsList"></div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-white rounded-lg shadow-lg p-12 text-center">
+      <div class="text-6xl mb-4">📋</div>
+      <h2 class="text-2xl font-bold text-gray-700 mb-2">No Registrations Found</h2>
+      <p class="text-gray-500">There are no student registrations matching your filter.</p>
+    </div>
+  </div>
+
+  <!-- Image Modal -->
+  <div id="imageModal" class="modal" onclick="closeModal()">
+    <img id="modalImage" class="modal-content" onclick="event.stopPropagation()">
+  </div>
+
+  <!-- Rejection Modal -->
+  <div id="rejectionModal" class="modal">
+    <div class="bg-white rounded-lg p-6 max-w-md" onclick="event.stopPropagation()">
+      <h3 class="text-xl font-bold mb-4">Reject Registration</h3>
+      <p class="text-gray-600 mb-4">Please provide a reason for rejection:</p>
+      <textarea id="rejectionReason" class="w-full border border-gray-300 rounded-lg p-3 mb-4" rows="4" placeholder="Enter reason..."></textarea>
+      <div class="flex gap-2">
+        <button onclick="confirmRejection()" class="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+          Confirm Rejection
+        </button>
+        <button onclick="closeRejectionModal()" class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allRegistrations = [];
+    let currentFilter = 'all';
+    let rejectionUserId = null;
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      alert('Please login as admin');
+      window.location.href = '/admin.html';
+    }
+
+    // Load registrations
+    async function loadRegistrations() {
+      try {
+        const response = await fetch('/api/admin/all-registrations', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) throw new Error('Failed to load registrations');
+
+        allRegistrations = await response.json();
+        updateStats();
+        displayRegistrations();
+        
+        document.getElementById('loading').classList.add('hidden');
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('loading').innerHTML = `
+          <div class="bg-red-100 text-red-800 p-4 rounded-lg">
+            ❌ Failed to load registrations: ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    function updateStats() {
+      const pending = allRegistrations.filter(r => r.verification_status === 'pending').length;
+      const approved = allRegistrations.filter(r => r.verification_status === 'approved').length;
+      const rejected = allRegistrations.filter(r => r.verification_status === 'rejected').length;
+      
+      document.getElementById('pendingCount').textContent = pending;
+      document.getElementById('approvedCount').textContent = approved;
+      document.getElementById('rejectedCount').textContent = rejected;
+    }
+
+    function filterRegistrations(filter) {
+      currentFilter = filter;
+      
+      // Update button styles
+      document.querySelectorAll('[id^="filter"]').forEach(btn => {
+        btn.className = 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700 font-medium';
+      });
+      document.getElementById('filter' + filter.charAt(0).toUpperCase() + filter.slice(1)).className = 
+        'px-4 py-2 rounded-lg bg-blue-600 text-white font-medium';
+      
+      displayRegistrations();
+    }
+
+    function displayRegistrations() {
+      let filtered = allRegistrations;
+      
+      if (currentFilter !== 'all') {
+        filtered = allRegistrations.filter(r => r.verification_status === currentFilter);
+      }
+
+      const container = document.getElementById('registrationsList');
+      const emptyState = document.getElementById('emptyState');
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      
+      container.innerHTML = filtered.map(reg => `
+        <div class="registration-card">
+          <div class="flex flex-col md:flex-row gap-6">
+            <!-- Photos -->
+            <div class="flex gap-4">
+              <div>
+                <p class="text-sm text-gray-600 mb-2">Profile Photo</p>
+                <div class="photo-container" onclick="showImage('/uploads/${reg.user_photo}')">
+                  <img src="/uploads/${reg.user_photo}" alt="User Photo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2240%22>?</text></svg>'">
+                </div>
+              </div>
+              <div>
+                <p class="text-sm text-gray-600 mb-2">College ID</p>
+                <div class="photo-container" onclick="showImage('/uploads/${reg.id_proof_photo}')">
+                  <img src="/uploads/${reg.id_proof_photo}" alt="ID Proof" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23ddd%22 width=%22100%22 height=%22100%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2240%22>ID</text></svg>'">
+                </div>
+              </div>
+            </div>
+
+            <!-- Details -->
+            <div class="flex-1">
+              <div class="flex justify-between items-start mb-4">
+                <div>
+                  <h3 class="text-xl font-bold text-gray-800">${reg.full_name}</h3>
+                  <p class="text-gray-600">@${reg.username}</p>
+                </div>
+                <span class="badge badge-${reg.verification_status}">
+                  ${reg.verification_status.toUpperCase()}
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p class="text-sm text-gray-600">Roll Number</p>
+                  <p class="font-medium">${reg.roll_no}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Date of Birth</p>
+                  <p class="font-medium">${new Date(reg.date_of_birth).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Mobile Number</p>
+                  <p class="font-medium">${reg.mobile_no}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Email</p>
+                  <p class="font-medium">${reg.email || 'Not provided'}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Registration Date</p>
+                  <p class="font-medium">${new Date(reg.registration_date).toLocaleString()}</p>
+                </div>
+                ${reg.verified_date ? `
+                <div>
+                  <p class="text-sm text-gray-600">Verified Date</p>
+                  <p class="font-medium">${new Date(reg.verified_date).toLocaleString()}</p>
+                </div>
+                ` : ''}
+              </div>
+
+              ${reg.rejection_reason ? `
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <p class="text-sm font-medium text-red-800">Rejection Reason:</p>
+                  <p class="text-sm text-red-600">${reg.rejection_reason}</p>
+                </div>
+              ` : ''}
+
+              <!-- Actions -->
+              ${reg.verification_status === 'pending' ? `
+                <div class="flex gap-2">
+                  <button onclick="approveRegistration(${reg.id})" class="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium">
+                    ✅ Approve
+                  </button>
+                  <button onclick="openRejectionModal(${reg.id})" class="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium">
+                    ❌ Reject
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function approveRegistration(userId) {
+      if (!confirm('Are you sure you want to approve this registration?')) return;
+
+      try {
+        const response = await fetch(`/api/admin/approve-registration/${userId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) throw new Error('Failed to approve');
+
+        alert('✅ Registration approved successfully!');
+        loadRegistrations();
+      } catch (error) {
+        alert('❌ Failed to approve: ' + error.message);
+      }
+    }
+
+    function openRejectionModal(userId) {
+      rejectionUserId = userId;
+      document.getElementById('rejectionReason').value = '';
+      document.getElementById('rejectionModal').classList.add('active');
+    }
+
+    function closeRejectionModal() {
+      document.getElementById('rejectionModal').classList.remove('active');
+      rejectionUserId = null;
+    }
+
+    async function confirmRejection() {
+      const reason = document.getElementById('rejectionReason').value.trim();
+      
+      if (!reason) {
+        alert('Please provide a reason for rejection');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/reject-registration/${rejectionUserId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ reason })
+        });
+
+        if (!response.ok) throw new Error('Failed to reject');
+
+        alert('❌ Registration rejected');
+        closeRejectionModal();
+        loadRegistrations();
+      } catch (error) {
+        alert('❌ Failed to reject: ' + error.message);
+      }
+    }
+
+    function showImage(src) {
+      document.getElementById('modalImage').src = src;
+      document.getElementById('imageModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('imageModal').classList.remove('active');
+    }
+
+    // Load on page load
+    loadRegistrations();
+  </script>
+</body>
+</html>

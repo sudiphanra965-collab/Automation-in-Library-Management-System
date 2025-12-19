@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <meta name="description" content="Advanced Library Management System - Browse, search, and manage your book collection" />
+  <meta name="theme-color" content="#4A90E2" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  
+  <!-- AGGRESSIVE CACHE BUSTING -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
+  <!-- Auto HTTPS Redirect for Mobile (Camera Access) -->
+  <script src="auto-https-redirect.js"></script>
+  
+  <!-- Performance & SEO -->
+  <!-- Using local Tailwind CSS for offline support -->
+  
+  <title>Advanced Library System</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>" />
+  
+  <!-- Tailwind CSS - LOCAL (100% Offline) -->
+  <script src="libs/tailwind.min.js"></script>
+  <link rel="stylesheet" href="style.css?v=20251030" />
+  <link rel="stylesheet" href="optimize.css?v=20251030" />
+  <link rel="stylesheet" href="responsive.css?v=20251030" />
+  <link rel="stylesheet" href="new-features.css?v=20251102" />
+  <link rel="stylesheet" href="my-books.css?v=20251104d" />
+  
+  <!-- Performance & Error Handling -->
+  <script src="performance.js?v=20251029" defer></script>
+  <script src="mobile-optimize.js?v=20251030" defer></script>
+  <script src="mobile-fixes.js?v=20251030" defer></script>
+  
+  <!-- Hide user-only sections for admins -->
+  <style>
+    body.admin-user .user-only-section {
+      display: none !important;
+      visibility: hidden !important;
+    }
+    /* Additional protection - hide stats section for admins */
+    body.admin-user #user-stats-section {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+    body.admin-user #recommendations-section {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+  </style>
+</head>
+<body>
+  <header class="flex items-center justify-between px-4 py-3 md:px-6">
+    <div class="header-left flex items-center gap-3">
+      <div class="logo w-10 h-10 md:w-11 md:h-11 rounded-md flex items-center justify-center text-2xl">📚</div>
+      <h1 class="text-lg md:text-2xl font-bold">Advanced Library System</h1>
+    </div>
+    <div class="header-right flex items-center gap-2">
+      <!-- Notifications Bell (shown when logged in) -->
+      <div id="notification-container" class="notification-bell hidden" style="position: relative;">
+        <span onclick="toggleNotifications()" style="cursor: pointer; font-size: 24px;">🔔</span>
+        <span id="notification-badge" style="display: none;">0</span>
+        
+        <!-- Notifications Dropdown -->
+        <div id="notifications-dropdown" class="notifications-dropdown">
+          <div class="notifications-header">
+            <h3>Notifications</h3>
+            <button onclick="markAllNotificationsRead()" class="mark-all-read">Mark all read</button>
+          </div>
+          <div id="notifications-list"></div>
+        </div>
+      </div>
+      
+      <!-- User Menu (shown when logged in) -->
+      <div id="user-menu-container" class="hidden" style="position: relative;">
+        <button onclick="toggleUserMenu()" class="user-menu-btn" style="background: #4A90E2; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500;">
+          <span id="user-menu-name">User</span> ▾
+        </button>
+        
+        <!-- User Menu Dropdown -->
+        <div id="user-menu-dropdown" class="user-menu-dropdown" style="display: none; position: absolute; top: 100%; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); min-width: 200px; margin-top: 8px; z-index: 1000;">
+          <div style="padding: 12px 16px; border-bottom: 1px solid #eee;">
+            <div style="font-weight: 600; color: #333;" id="user-menu-username">Username</div>
+            <div style="font-size: 12px; color: #999;">Logged in</div>
+          </div>
+          <a href="#" onclick="showUserStats(); return false;" class="user-only-menu-item" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+            📊 My Stats
+          </a>
+          <a href="#" onclick="showReadingLists(); return false;" class="user-only-menu-item" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+            📚 My Lists
+          </a>
+          <a href="#" onclick="showReservations(); return false;" class="user-only-menu-item" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+            📅 My Reservations
+          </a>
+          <a href="/my-books-fresh.html" class="user-only-menu-item" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+            📖 My Borrowed Books
+          </a>
+        </div>
+      </div>
+      
+      <div id="auth-container"></div>
+    </div>
+  </header>
+
+  <main class="main-content max-w-7xl mx-auto px-3 md:px-6">
+    <section class="search-container p-3 md:p-4 rounded-lg">
+      <div class="search-layout">
+        <select id="searchField" class="search-select">
+          <option value="all">All Fields</option>
+          <option value="title">Title</option>
+          <option value="author">Author</option>
+          <option value="isbn">ISBN</option>
+        </select>
+        
+        <div class="search-input-wrapper">
+          <input id="searchInput" placeholder="Enter search term" class="search-input" autocomplete="off" />
+          <!-- Search Suggestions Dropdown -->
+          <div id="searchSuggestions" class="search-suggestions hidden absolute top-full left-0 right-0 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-80 overflow-y-auto">
+            <div class="suggestions-header px-3 py-2 bg-gray-50 border-b text-sm font-medium text-gray-600">
+              🔍 Search Suggestions
+            </div>
+            <div id="suggestionsList" class="suggestions-list">
+              <!-- Dynamic suggestions will be inserted here -->
+            </div>
+          </div>
+        </div>
+        
+        <button id="searchButton" class="search-btn">Search</button>
+        <button id="openAdvBtn" class="search-btn advanced-btn">Advanced Search</button>
+      </div>
+    </section>
+
+    <section class="carousel-container">
+      <button class="arrow left" id="arrow-left">&#10094;</button>
+      <div class="categories-wrapper flex items-center gap-4 px-6" id="categoriesWrapper"></div>
+      <button class="arrow right" id="arrow-right">&#10095;</button>
+    </section>
+
+    <!-- User Stats Dashboard (shown ONLY when logged in as NON-ADMIN user) -->
+    <section id="user-stats-section" class="user-stats-dashboard hidden user-only-section" style="margin: 20px 0; display: none;">
+      <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600;">📊 Your Reading Stats</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total-borrowed">0</div>
+          <div class="stat-label">Books Borrowed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total-returned">0</div>
+          <div class="stat-label">Books Returned</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-currently-borrowed">0</div>
+          <div class="stat-label">Currently Reading</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-reading-streak">0</div>
+          <div class="stat-label">Day Streak 🔥</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-favorite-category" style="font-size: 18px;">-</div>
+          <div class="stat-label">Favorite Category</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total-points">0</div>
+          <div class="stat-label">Total Points 🏆</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recommendations Section (shown ONLY when logged in as NON-ADMIN user) -->
+    <section id="recommendations-section" class="recommendations-section hidden user-only-section">
+      <h2 class="text-xl md:text-2xl font-bold mb-4">🎯 Recommended for You</h2>
+      
+      <div id="based-on-history"></div>
+      <div id="favorite-authors"></div>
+      <div id="trending"></div>
+      <div id="top-rated"></div>
+    </section>
+
+    <section id="main-books-section">
+      <h2 id="books-title" class="text-xl md:text-2xl font-bold mb-3">Available Books</h2>
+      <div id="books-grid" class="books-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      <h2 id="books-title-unavail" class="text-xl md:text-2xl font-bold mt-4 mb-3" style="display:none">Unavailable Books</h2>
+      <div id="books-grid-unavail" class="books-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" style="display:none"></div>
+    </section>
+
+    <!-- My Books Section -->
+    <section id="my-books-view" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl md:text-2xl font-bold text-blue-600">
+          📚 My Borrowed Books
+        </h2>
+        <button onclick="showMainBooks()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md transition-colors">
+          ← Back to Library
+        </button>
+      </div>
+      
+      <!-- Stats -->
+      <div id="my-books-stats" class="grid grid-cols-2 gap-4 mb-6">
+        <!-- Stats will be dynamically inserted by my-books.js -->
+      </div>
+      
+      <!-- Books List -->
+      <div id="my-books-list" class="space-y-4">
+        <!-- Borrowed books will be dynamically inserted here by my-books.js -->
+      </div>
+    </section>
+
+    <!-- Reading Lists Section -->
+    <section id="reading-lists-section" class="reading-lists-section hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl md:text-2xl font-bold text-blue-600">📚 My Reading Lists</h2>
+        <div class="flex gap-2">
+          <button onclick="showCreateListModal()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
+            ➕ Create New List
+          </button>
+          <button onclick="showMainBooks()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md transition-colors">
+            ← Back to Library
+          </button>
+        </div>
+      </div>
+      
+      <div id="reading-lists-container"></div>
+    </section>
+
+    <!-- Reservations Section -->
+    <section id="reservations-section" class="reservations-section hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl md:text-2xl font-bold text-blue-600">📅 My Reservations</h2>
+        <button onclick="showMainBooks()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md transition-colors">
+          ← Back to Library
+        </button>
+      </div>
+      
+      <div id="reservations-container"></div>
+    </section>
+
+    <!-- User Stats Page (Full View) -->
+    <section id="user-stats-page" class="hidden">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl md:text-2xl font-bold text-blue-600">📊 My Reading Statistics</h2>
+        <button onclick="showMainBooks()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md transition-colors">
+          ← Back to Library
+        </button>
+      </div>
+      
+      <div class="user-stats-dashboard" style="margin: 0;">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-total-borrowed">0</div>
+            <div class="stat-label">Books Borrowed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-total-returned">0</div>
+            <div class="stat-label">Books Returned</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-currently-borrowed">0</div>
+            <div class="stat-label">Currently Reading</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-reading-streak">0</div>
+            <div class="stat-label">Day Streak 🔥</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-favorite-category" style="font-size: 18px;">-</div>
+            <div class="stat-label">Favorite Category</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-page-total-points">0</div>
+            <div class="stat-label">Total Points 🏆</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="margin-top: 30px;">
+        <h3 class="text-lg font-bold mb-4">📈 Reading Activity</h3>
+        <p class="text-gray-600">Detailed statistics and charts coming soon!</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Auth modal -->
+  <div id="authModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-md">
+      <span class="close-btn" onclick="closeAuthModal()">&times;</span>
+      <div id="login-form-container">
+        <h2>Login</h2>
+        <form id="loginForm" class="flex flex-col gap-3">
+          <input name="username" placeholder="Username" required class="py-2 px-3 rounded-md" />
+          <input name="password" type="password" placeholder="Password" required class="py-2 px-3 rounded-md" />
+          <div id="login-message" class="auth-message"></div>
+          <button type="submit" class="auth-btn px-4 py-2 rounded-md">Login</button>
+        </form>
+        <p>Don't have an account? <a href="/signup-enhanced.html" class="text-blue-600 hover:underline">📝 Student Registration</a></p>
+      </div>
+      <div id="signup-form-container" class="hidden">
+        <h2>Student Registration</h2>
+        <div class="text-center py-8">
+          <div class="text-6xl mb-4">📚</div>
+          <p class="text-gray-600 mb-4">Complete student registration with photo verification</p>
+          <a href="/signup-enhanced.html" class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium">
+            📝 Go to Registration Form
+          </a>
+          <p class="mt-4 text-sm text-gray-500">Already registered? <a href="#" onclick="toggleAuthForm('login')" class="text-blue-600 hover:underline">Login here</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced Search modal -->
+  <div id="advModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-4xl">
+      <span class="close-btn" onclick="closeAdvModal()">&times;</span>
+      <h2 class="text-2xl font-bold mb-4">Advanced Search with Keyword Mapping</h2>
+      
+      <!-- Quick Search Templates -->
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold mb-2">Quick Search Templates:</h3>
+        <div class="flex flex-wrap gap-2">
+          <button class="template-btn bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded text-sm" onclick="loadTemplate('recent')">Recent Publications</button>
+          <button class="template-btn bg-green-100 hover:bg-green-200 px-3 py-1 rounded text-sm" onclick="loadTemplate('science')">Science & Technology</button>
+          <button class="template-btn bg-purple-100 hover:bg-purple-200 px-3 py-1 rounded text-sm" onclick="loadTemplate('classic')">Classic Literature</button>
+          <button class="template-btn bg-orange-100 hover:bg-orange-200 px-3 py-1 rounded text-sm" onclick="loadTemplate('academic')">Academic Resources</button>
+        </div>
+      </div>
+
+      <!-- Search Fields -->
+      <div id="advRows" class="flex flex-col gap-3 mb-4"></div>
+      
+      <!-- Add Field and Options -->
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <button id="addAdvFieldBtn" class="auth-btn px-4 py-2 rounded-md" type="button">+ Add Search Field</button>
+        <button id="clearAdvFieldsBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md" type="button">Clear All</button>
+        <div class="ml-auto flex items-center gap-2">
+          <label for="advMatch" class="font-medium">Match:</label>
+          <select id="advMatch" class="py-2 px-3 rounded-md border">
+            <option value="ALL">ALL Terms (AND)</option>
+            <option value="ANY">ANY Terms (OR)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sort and Display Options -->
+      <div class="flex flex-wrap items-center gap-4 mb-4 p-3 bg-gray-50 rounded">
+        <div class="flex items-center gap-2">
+          <label for="advSort" class="font-medium">Sort by:</label>
+          <select id="advSort" class="py-1 px-2 rounded border">
+            <option value="relevance:desc">Relevance</option>
+            <option value="title:asc">Title (A-Z)</option>
+            <option value="title:desc">Title (Z-A)</option>
+            <option value="author:asc">Author (A-Z)</option>
+            <option value="author:desc">Author (Z-A)</option>
+            <option value="year:desc">Year (Newest)</option>
+            <option value="year:asc">Year (Oldest)</option>
+            <option value="publisher:asc">Publisher</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="advPageSize" class="font-medium">Results per page:</label>
+          <select id="advPageSize" class="py-1 px-2 rounded border">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-between items-center">
+        <div class="flex gap-2">
+          <button id="advSearchBtn" class="auth-btn px-6 py-2 rounded-md" type="button">🔍 Search</button>
+          <button id="saveSearchBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md" type="button">💾 Save Search</button>
+        </div>
+        <div class="flex gap-2">
+          <button id="loadSearchBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md" type="button">📂 Load Saved</button>
+          <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md" onclick="closeAdvModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Search Modal -->
+  <div id="saveSearchModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-md">
+      <span class="close-btn" onclick="closeSaveSearchModal()">&times;</span>
+      <h3 class="text-lg font-bold mb-3">Save Search</h3>
+      <input id="searchNameInput" placeholder="Enter search name..." class="w-full py-2 px-3 rounded-md border mb-3" />
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeSaveSearchModal()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md">Cancel</button>
+        <button onclick="saveCurrentSearch()" class="auth-btn px-4 py-2 rounded-md">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Search Modal -->
+  <div id="loadSearchModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-md">
+      <span class="close-btn" onclick="closeLoadSearchModal()">&times;</span>
+      <h3 class="text-lg font-bold mb-3">Saved Searches</h3>
+      <div id="savedSearchesList" class="max-h-60 overflow-y-auto mb-3"></div>
+      <button onclick="closeLoadSearchModal()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md">Close</button>
+    </div>
+  </div>
+
+  <!-- QR Code Modal -->
+  <div id="qrCodeModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-md">
+      <span class="close-btn" onclick="closeQRCodeModal()">&times;</span>
+      <h2 class="text-2xl font-bold mb-4 text-center">Book QR Code</h2>
+      
+      <div id="qrCodeContent" class="text-center">
+        <div id="qrCodeLoading" class="py-8">
+          <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p class="mt-2 text-gray-600">Generating QR Code...</p>
+        </div>
+        
+        <div id="qrCodeDisplay" class="hidden">
+          <div class="bg-white p-4 rounded-lg inline-block mb-4">
+            <img id="qrCodeImage" src="" alt="QR Code" class="w-64 h-64 mx-auto" />
+          </div>
+          
+          <h3 id="qrBookTitle" class="text-lg font-semibold text-gray-800 mb-2"></h3>
+          <p id="qrBookAuthor" class="text-gray-600 mb-4"></p>
+          
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-left">
+            <h4 class="font-semibold text-gray-700 mb-2">📱 How to use:</h4>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li>• Scan this QR code with your phone camera</li>
+              <li>• View complete book details and availability</li>
+              <li>• Share the QR code with others</li>
+            </ul>
+          </div>
+          
+          <div class="flex gap-2 justify-center">
+            <button id="downloadQRBtn" onclick="downloadQRCode()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+              💾 Download QR Code
+            </button>
+            <button id="printQRBtn" onclick="printQRCode()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+              🖨️ Print
+            </button>
+          </div>
+        </div>
+        
+        <div id="qrCodeError" class="hidden py-8">
+          <div class="text-red-600 text-lg mb-2">⚠️ Failed to generate QR Code</div>
+          <p class="text-gray-600">Please try again later.</p>
+        </div>
+      </div>
+      
+      <div class="mt-4 text-center">
+        <button onclick="closeQRCodeModal()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-md font-medium transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- QR Code Functions Override - Inline to bypass caching -->
+  <script>
+    console.log('🔥 QR Code functions override loaded');
+    
+    window.downloadQRCode = function() {
+      console.log('💾 INLINE: Download clicked');
+      console.log('💾 INLINE: currentQRCodeData:', window.currentQRCodeData);
+      
+      if (!window.currentQRCodeData) {
+        alert('⚠️ QR code not ready. Please wait for it to load.');
+        return;
+      }
+      
+      try {
+        const link = document.createElement('a');
+        link.href = window.currentQRCodeData.image;
+        link.download = 'qrcode-' + window.currentQRCodeData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        console.log('✅ INLINE: Download complete');
+      } catch (err) {
+        console.error('❌ INLINE: Download error:', err);
+        alert('Failed to download: ' + err.message);
+      }
+    };
+    
+    window.printQRCode = function() {
+      console.log('🖨️ INLINE: Print clicked');
+      console.log('🖨️ INLINE: currentQRCodeData:', window.currentQRCodeData);
+      
+      if (!window.currentQRCodeData) {
+        alert('⚠️ QR code not ready. Please wait for it to load.');
+        return;
+      }
+      
+      try {
+        const w = window.open('', '_blank', 'width=800,height=600');
+        if (!w) {
+          alert('Please allow popups for this site.');
+          return;
+        }
+        
+        const html = '<!DOCTYPE html><html><head><title>QR Code - ' + 
+          window.currentQRCodeData.title + 
+          '</title><style>body{font-family:Arial;text-align:center;padding:20px;max-width:600px;margin:0 auto}' +
+          'img{max-width:400px;width:100%;margin:20px auto;display:block;border:2px solid #ddd;padding:10px;background:white}' +
+          'h2{margin-bottom:10px;color:#333}p{color:#666}' +
+          '.print-btn{margin-top:20px;padding:12px 24px;font-size:16px;cursor:pointer;background:#2563eb;color:white;border:none;border-radius:6px}' +
+          '@media print{button{display:none}body{padding:0}}</style></head><body>' +
+          '<h2>' + window.currentQRCodeData.title + '</h2>' +
+          '<p>by ' + window.currentQRCodeData.author + '</p>' +
+          '<img src="' + window.currentQRCodeData.image + '" alt="QR Code"/>' +
+          '<p>📱 Scan this QR code to view book details</p>' +
+          '<button class="print-btn" onclick="window.print()">🖨️ Print</button>' +
+          '</body></html>';
+        
+        w.document.write(html);
+        w.document.close();
+        console.log('✅ INLINE: Print window opened');
+      } catch (err) {
+        console.error('❌ INLINE: Print error:', err);
+        alert('Failed to print: ' + err.message);
+      }
+    };
+  </script>
+
+  <!-- Book Details Modal -->
+  <div id="bookDetailsModal" class="modal hidden">
+    <div class="auth-content w-11/12 max-w-4xl">
+      <span class="close-btn" onclick="closeBookDetailsModal()">&times;</span>
+      <div id="bookDetailsContent" class="flex flex-col md:flex-row gap-6">
+        <!-- Book Cover and Actions -->
+        <div class="flex-shrink-0 text-center">
+          <img id="bookDetailsCover" src="" alt="Book Cover" class="w-48 h-64 object-cover rounded-lg shadow-lg mx-auto mb-4" />
+          <div class="space-y-2">
+            <button id="bookDetailsBorrowBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium transition-colors">
+              📚 Borrow Request
+            </button>
+            <button onclick="closeBookDetailsModal()" class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-medium transition-colors">
+              Close
+            </button>
+          </div>
+        </div>
+        
+        <!-- Book Information -->
+        <div class="flex-1 space-y-4">
+          <!-- Title and Basic Info -->
+          <div class="border-b pb-4">
+            <h2 id="bookDetailsTitle" class="text-2xl font-bold text-gray-800 mb-2"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">👤 Author:</span>
+                <span id="bookDetailsAuthor" class="text-blue-600 font-medium"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">🏷️ Category:</span>
+                <span id="bookDetailsCategory" class="text-green-600 font-medium"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">🆔 Book ID:</span>
+                <span id="bookDetailsID" class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-bold text-sm"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">📚 ISBN:</span>
+                <span id="bookDetailsISBN" class="font-mono text-gray-700"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">🏢 Publisher:</span>
+                <span id="bookDetailsPublisher" class="text-gray-700"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">📅 Year:</span>
+                <span id="bookDetailsYear" class="text-gray-700"></span>
+              </div>
+              <div class="flex items-center">
+                <span class="font-semibold text-gray-600 w-20">📊 Status:</span>
+                <span id="bookDetailsStatus" class="font-medium"></span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Description -->
+          <div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">📖 Description</h3>
+            <p id="bookDetailsDescription" class="text-gray-700 leading-relaxed"></p>
+          </div>
+          
+          <!-- Abstract -->
+          <div id="bookDetailsAbstractSection" class="hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">📄 Abstract</h3>
+            <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+              <p id="bookDetailsAbstract" class="text-gray-700 leading-relaxed italic"></p>
+            </div>
+          </div>
+          
+          <!-- Table of Contents -->
+          <div id="bookDetailsTOCSection" class="hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">📋 Table of Contents</h3>
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded">
+              <pre id="bookDetailsTOC" class="text-sm text-gray-700 whitespace-pre-wrap font-mono"></pre>
+            </div>
+          </div>
+          
+          <!-- Subjects -->
+          <div id="bookDetailsSubjectsSection" class="hidden">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">🔖 Subjects</h3>
+            <div id="bookDetailsSubjects" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=1762317467"></script>
+  <script src="admin-panel.js?v=1762317467"></script>
+  <script src="admin-book-fix.js?v=1762317467"></script>
+  <script src="new-features.js?v=1762317467"></script>
+  <script src="ui-integration.js?v=1762317467"></script>
+  <script src="my-books-functions.js?v=1762317467"></script>
+  <!-- <script src="my-books.js?v=20251104d"></script> Disabled - using script.js functions instead -->
+  
+  <!-- Force load stats on page load -->
+  <script>
+    console.log('🔥 INLINE: Stats loader initialized');
+    
+    // Immediately hide sections for admins on page load
+    (function() {
+      const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
+      if (storedIsAdmin) {
+        console.log('⚠️ INLINE: Admin detected from localStorage - hiding sections immediately');
+        document.body.classList.add('admin-user');
+        const statsSection = document.getElementById('user-stats-section');
+        const recommendationsSection = document.getElementById('recommendations-section');
+        if (statsSection) {
+          statsSection.style.display = 'none';
+          statsSection.classList.add('hidden');
+        }
+        if (recommendationsSection) {
+          recommendationsSection.style.display = 'none';
+          recommendationsSection.classList.add('hidden');
+        }
+        document.querySelectorAll('.user-only-section').forEach(section => {
+          section.style.display = 'none';
+          section.classList.add('hidden');
+        });
+      }
+    })();
+    
+    // Wait for DOM and other scripts to load
+    setTimeout(async function() {
+      const token = localStorage.getItem('token');
+      console.log('🔥 INLINE: Token check:', token ? 'Found' : 'Not found');
+      
+      if (!token) {
+        console.log('⚠️ INLINE: No token, skipping stats');
+        return;
+      }
+      
+      // Check if user is admin (check both JWT and localStorage)
+      let isAdmin = false;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        isAdmin = payload.is_admin === 1 || payload.isAdmin === 1 || payload.isAdmin === true;
+        console.log('👤 INLINE: JWT payload check - isAdmin:', isAdmin);
+      } catch (e) {
+        console.error('❌ INLINE: Error parsing JWT:', e);
+      }
+      
+      // Also check localStorage
+      const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
+      if (storedIsAdmin) {
+        isAdmin = true;
+        console.log('👤 INLINE: localStorage check - isAdmin: true');
+      }
+      
+      console.log('👤 INLINE: Final user type:', isAdmin ? 'ADMIN' : 'USER');
+      
+      if (isAdmin) {
+        console.log('⚠️ INLINE: Admin user - hiding all user-only sections');
+        // Add admin class to body
+        document.body.classList.add('admin-user');
+        
+        // Hide stats section
+        const statsSection = document.getElementById('user-stats-section');
+        if (statsSection) {
+          statsSection.style.display = 'none';
+          statsSection.classList.add('hidden');
+        }
+        
+        // Hide recommendations section
+        const recommendationsSection = document.getElementById('recommendations-section');
+        if (recommendationsSection) {
+          recommendationsSection.style.display = 'none';
+          recommendationsSection.classList.add('hidden');
+        }
+        
+        // Hide all user-only sections
+        document.querySelectorAll('.user-only-section').forEach(section => {
+          section.style.display = 'none';
+          section.classList.add('hidden');
+        });
+        
+        return; // Don't load stats for admin
+      }
+      
+      console.log('🔥 INLINE: Loading stats...');
+      
+      try {
+        const response = await fetch('/api/user/stats', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const stats = await response.json();
+        console.log('✅ INLINE: Stats loaded:', stats);
+        
+        // Update elements
+        const updates = {
+          'stat-total-borrowed': stats.totalBorrowed || 0,
+          'stat-total-returned': stats.totalReturned || 0,
+          'stat-currently-borrowed': stats.currentlyBorrowed || 0,
+          'stat-reading-streak': stats.readingStreak || 0,
+          'stat-favorite-category': stats.favoriteCategory || 'None',
+          'stat-total-points': stats.totalPoints || 0
+        };
+        
+        for (const [id, value] of Object.entries(updates)) {
+          const el = document.getElementById(id);
+          if (el) {
+            el.textContent = value;
+            console.log(`✅ INLINE: Updated ${id} = ${value}`);
+          }
+        }
+        
+        // Show section for non-admin users
+        const section = document.getElementById('user-stats-section');
+        if (section) {
+          section.classList.remove('hidden');
+          section.style.display = 'block'; // Override inline display:none
+          console.log('✅ INLINE: Stats section visible');
+        }
+        
+      } catch (error) {
+        console.error('❌ INLINE: Stats error:', error);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

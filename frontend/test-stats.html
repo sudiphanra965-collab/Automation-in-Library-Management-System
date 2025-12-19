@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Stats Loading</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .stat-card { background: white; padding: 20px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .stat-value { font-size: 32px; font-weight: bold; color: #2563eb; }
+    .stat-label { color: #666; margin-top: 8px; }
+    button { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 10px 0; }
+    button:hover { background: #1d4ed8; }
+    #log { background: #1e293b; color: #10b981; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; margin-top: 20px; }
+    .error { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>📊 Test User Stats Loading</h1>
+  
+  <div>
+    <button onclick="testLogin()">1. Login as kj</button>
+    <button onclick="testLoadStats()">2. Load Stats</button>
+    <button onclick="clearLog()">Clear Log</button>
+  </div>
+  
+  <div id="stats-container" style="display: flex; flex-wrap: wrap;">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total-borrowed">-</div>
+      <div class="stat-label">Books Borrowed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total-returned">-</div>
+      <div class="stat-label">Books Returned</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-currently-borrowed">-</div>
+      <div class="stat-label">Currently Reading</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-reading-streak">-</div>
+      <div class="stat-label">Day Streak 🔥</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-favorite-category" style="font-size: 18px;">-</div>
+      <div class="stat-label">Favorite Category</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total-points">-</div>
+      <div class="stat-label">Total Points 🏆</div>
+    </div>
+  </div>
+  
+  <div id="log"></div>
+  
+  <script>
+    function log(message, isError = false) {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const className = isError ? 'error' : '';
+      logDiv.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+    
+    async function testLogin() {
+      log('🔐 Attempting login as kj...');
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'kj', password: 'kj' })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        log('✅ Login successful! Token saved.');
+        log(`Token: ${data.token.substring(0, 30)}...`);
+      } catch (error) {
+        log(`❌ Login failed: ${error.message}`, true);
+      }
+    }
+    
+    async function testLoadStats() {
+      log('📊 Loading user stats...');
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        log('❌ No token found! Please login first.', true);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/user/stats', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const stats = await response.json();
+        log('✅ Stats received:');
+        log(JSON.stringify(stats, null, 2));
+        
+        // Update display
+        document.getElementById('stat-total-borrowed').textContent = stats.totalBorrowed || 0;
+        document.getElementById('stat-total-returned').textContent = stats.totalReturned || 0;
+        document.getElementById('stat-currently-borrowed').textContent = stats.currentlyBorrowed || 0;
+        document.getElementById('stat-reading-streak').textContent = stats.readingStreak || 0;
+        document.getElementById('stat-favorite-category').textContent = stats.favoriteCategory || 'None';
+        document.getElementById('stat-total-points').textContent = stats.totalPoints || 0;
+        
+        log('✅ Stats displayed successfully!');
+      } catch (error) {
+        log(`❌ Failed to load stats: ${error.message}`, true);
+      }
+    }
+    
+    // Auto-test on load if token exists
+    window.addEventListener('load', () => {
+      log('🚀 Page loaded');
+      const token = localStorage.getItem('token');
+      if (token) {
+        log('✅ Token found in localStorage');
+        log('Click "Load Stats" to test');
+      } else {
+        log('⚠️ No token found. Click "Login as kj" first');
+      }
+    });
+  </script>
+</body>
+</html>

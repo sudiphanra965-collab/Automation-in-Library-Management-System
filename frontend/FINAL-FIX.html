@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QR Code Test & Fix</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    .test-section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    button { background: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 5px; font-size: 14px; }
+    button:hover { background: #1d4ed8; }
+    .success { background: #10b981; }
+    .error { background: #ef4444; }
+    #log { background: #1e293b; color: #10b981; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 400px; overflow-y: auto; margin-top: 20px; }
+    .qr-display { text-align: center; margin: 20px 0; }
+    .qr-display img { max-width: 300px; border: 2px solid #ddd; padding: 10px; background: white; }
+  </style>
+</head>
+<body>
+  <h1>🔧 Library System - Complete Fix & Test</h1>
+  
+  <div class="test-section">
+    <h2>Step 1: Login</h2>
+    <button onclick="testLogin('kj', 'kj')">Login as User (kj)</button>
+    <button onclick="testLogin('admin', 'admin')">Login as Admin</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>Step 2: Test QR Code Generation</h2>
+    <button onclick="testQRCode(1)">Generate QR for Book ID 1</button>
+    <button onclick="testQRCode(2)">Generate QR for Book ID 2</button>
+    <div id="qr-result" class="qr-display"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>Step 3: Test Download & Print</h2>
+    <button onclick="testDownload()">Test Download</button>
+    <button onclick="testPrint()">Test Print</button>
+  </div>
+  
+  <div class="test-section">
+    <h2>Step 4: Check User Type & Stats Visibility</h2>
+    <button onclick="checkUserType()">Check Current User</button>
+    <div id="user-info"></div>
+  </div>
+  
+  <div id="log"></div>
+  
+  <script>
+    let token = null;
+    let isAdmin = false;
+    
+    function log(msg, isError = false) {
+      const logDiv = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      const color = isError ? '#ef4444' : '#10b981';
+      logDiv.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    async function testLogin(username, password) {
+      log(`🔐 Logging in as ${username}...`);
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const data = await res.json();
+        token = data.token;
+        isAdmin = data.is_admin === 1;
+        localStorage.setItem('token', token);
+        
+        log(`✅ Login successful! Token: ${token.substring(0, 30)}...`);
+        log(`👤 User type: ${isAdmin ? 'ADMIN' : 'REGULAR USER'}`);
+        log(`📝 is_admin value: ${data.is_admin}`);
+        
+        checkUserType();
+      } catch (err) {
+        log(`❌ Login failed: ${err.message}`, true);
+      }
+    }
+    
+    async function testQRCode(bookId) {
+      log(`📱 Generating QR code for book ${bookId}...`);
+      
+      if (!token) {
+        log('❌ Please login first!', true);
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/books/${bookId}/qrcode`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        
+        const data = await res.json();
+        log(`✅ QR code generated successfully`);
+        log(`📖 Book: ${data.bookData.title} by ${data.bookData.author}`);
+        log(`🖼️ QR code length: ${data.qrCode.length} chars`);
+        
+        // Store globally
+        window.currentQRCodeData = {
+          image: data.qrCode,
+          title: data.bookData.title,
+          author: data.bookData.author
+        };
+        
+        log(`✅ Stored in window.currentQRCodeData`);
+        log(`✅ Data: ${JSON.stringify(window.currentQRCodeData).substring(0, 100)}...`);
+        
+        // Display QR code
+        document.getElementById('qr-result').innerHTML = `
+          <h3>${data.bookData.title}</h3>
+          <p>by ${data.bookData.author}</p>
+          <img src="${data.qrCode}" alt="QR Code"/>
+        `;
+        
+      } catch (err) {
+        log(`❌ QR generation failed: ${err.message}`, true);
+      }
+    }
+    
+    function testDownload() {
+      log(`💾 Testing download...`);
+      
+      if (!window.currentQRCodeData) {
+        log(`❌ No QR code data! window.currentQRCodeData is: ${window.currentQRCodeData}`, true);
+        log(`❌ Please generate a QR code first!`, true);
+        return;
+      }
+      
+      try {
+        log(`✅ QR data found: ${window.currentQRCodeData.title}`);
+        
+        const link = document.createElement('a');
+        link.href = window.currentQRCodeData.image;
+        link.download = `qrcode-${window.currentQRCodeData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        log(`✅ Download initiated!`);
+      } catch (err) {
+        log(`❌ Download failed: ${err.message}`, true);
+      }
+    }
+    
+    function testPrint() {
+      log(`🖨️ Testing print...`);
+      
+      if (!window.currentQRCodeData) {
+        log(`❌ No QR code data!`, true);
+        return;
+      }
+      
+      try {
+        log(`✅ QR data found: ${window.currentQRCodeData.title}`);
+        
+        const w = window.open('', '_blank', 'width=800,height=600');
+        if (!w) {
+          log(`❌ Popup blocked!`, true);
+          return;
+        }
+        
+        w.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>QR Code - ${window.currentQRCodeData.title}</title>
+            <style>
+              body { font-family: Arial; text-align: center; padding: 20px; }
+              img { max-width: 400px; margin: 20px; border: 2px solid #ddd; padding: 10px; }
+              @media print { button { display: none; } }
+            </style>
+          </head>
+          <body>
+            <h2>${window.currentQRCodeData.title}</h2>
+            <p>by ${window.currentQRCodeData.author}</p>
+            <img src="${window.currentQRCodeData.image}" alt="QR Code"/>
+            <p>📱 Scan to view book details</p>
+            <button onclick="window.print()" style="padding:12px 24px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer">🖨️ Print</button>
+          </body>
+          </html>
+        `);
+        w.document.close();
+        
+        log(`✅ Print window opened!`);
+      } catch (err) {
+        log(`❌ Print failed: ${err.message}`, true);
+      }
+    }
+    
+    function checkUserType() {
+      const userInfo = document.getElementById('user-info');
+      
+      if (!token) {
+        userInfo.innerHTML = '<p style="color:#ef4444">❌ Not logged in</p>';
+        log('⚠️ Not logged in');
+        return;
+      }
+      
+      const shouldShowStats = !isAdmin;
+      
+      userInfo.innerHTML = `
+        <div style="padding:15px;background:${isAdmin ? '#fee' : '#efe'};border-radius:6px;margin-top:10px">
+          <p><strong>User Type:</strong> ${isAdmin ? '👑 ADMIN' : '👤 REGULAR USER'}</p>
+          <p><strong>is_admin:</strong> ${isAdmin}</p>
+          <p><strong>Reading Stats Should Show:</strong> ${shouldShowStats ? '✅ YES' : '❌ NO'}</p>
+          <p><strong>Token:</strong> ${token.substring(0, 40)}...</p>
+        </div>
+      `;
+      
+      log(`📊 User type check: ${isAdmin ? 'ADMIN (stats hidden)' : 'USER (stats visible)'}`);
+    }
+    
+    // Auto-check on load
+    window.addEventListener('load', () => {
+      log('🚀 Test page loaded');
+      const savedToken = localStorage.getItem('token');
+      if (savedToken) {
+        log('✅ Found saved token');
+        token = savedToken;
+        // Decode to check admin status
+        try {
+          const payload = JSON.parse(atob(savedToken.split('.')[1]));
+          isAdmin = payload.is_admin === 1;
+          log(`👤 Decoded user: ${payload.username}, admin: ${isAdmin}`);
+          checkUserType();
+        } catch (e) {
+          log('⚠️ Could not decode token');
+        }
+      } else {
+        log('⚠️ No saved token - please login');
+      }
+    });
+  </script>
+</body>
+</html>

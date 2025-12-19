@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  
+  <!-- Auto HTTPS Redirect for Mobile (Camera Access) -->
+  <script src="auto-https-redirect.js"></script>
+  
+  <title>Book Information - Library System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="responsive.css?v=20251030" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .book-card {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    .available {
+      background-color: #10b981;
+      color: white;
+    }
+    .borrowed {
+      background-color: #ef4444;
+      color: white;
+    }
+    .info-row {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 1rem 0;
+    }
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    .loader {
+      border: 4px solid #f3f4f6;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="p-4">
+  <div class="max-w-2xl mx-auto my-8">
+    <!-- Loading State -->
+    <div id="loading" class="text-center py-12">
+      <div class="loader mx-auto mb-4"></div>
+      <p class="text-white text-lg font-semibold">Loading book information...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error" class="hidden book-card p-8 text-center">
+      <div class="text-6xl mb-4">⚠️</div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Book Not Found</h2>
+      <p class="text-gray-600 mb-6" id="error-message">Unable to load book information.</p>
+      <button onclick="window.close()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-md font-medium">
+        Close
+      </button>
+    </div>
+
+    <!-- Book Information -->
+    <div id="book-info" class="hidden book-card p-8">
+      <div class="flex flex-col md:flex-row gap-6">
+        <!-- Book Cover -->
+        <div class="flex-shrink-0 text-center md:text-left">
+          <img id="book-cover" src="" alt="Book Cover" class="w-48 h-64 object-cover rounded-lg shadow-lg mx-auto md:mx-0" />
+        </div>
+
+        <!-- Book Details -->
+        <div class="flex-1">
+          <h1 id="book-title" class="text-3xl font-bold text-gray-800 mb-2"></h1>
+          <p id="book-author" class="text-xl text-gray-600 mb-4"></p>
+
+          <!-- Status Badge -->
+          <div class="mb-6">
+            <span id="status-badge" class="status-badge"></span>
+          </div>
+
+          <!-- Book Information Grid -->
+          <div class="space-y-0">
+            <div class="info-row">
+              <div class="flex justify-between items-center">
+                <span class="font-semibold text-gray-700">🆔 Book ID:</span>
+                <span id="book-id" class="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-bold text-sm"></span>
+              </div>
+            </div>
+
+            <div class="info-row">
+              <div class="flex justify-between items-center">
+                <span class="font-semibold text-gray-700">📚 ISBN:</span>
+                <span id="book-isbn" class="text-gray-900 font-mono"></span>
+              </div>
+            </div>
+
+            <div class="info-row">
+              <div class="flex justify-between items-center">
+                <span class="font-semibold text-gray-700">🏷️ Category:</span>
+                <span id="book-category" class="text-gray-900"></span>
+              </div>
+            </div>
+
+            <div class="info-row" id="publisher-row">
+              <div class="flex justify-between items-center">
+                <span class="font-semibold text-gray-700">🏢 Publisher:</span>
+                <span id="book-publisher" class="text-gray-900"></span>
+              </div>
+            </div>
+
+            <div class="info-row" id="year-row">
+              <div class="flex justify-between items-center">
+                <span class="font-semibold text-gray-700">📅 Year:</span>
+                <span id="book-year" class="text-gray-900"></span>
+              </div>
+            </div>
+
+            <div class="info-row" id="borrowed-info" style="display: none;">
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-semibold text-gray-700">👤 Borrowed By:</span>
+                  <span id="borrowed-by" class="text-gray-900 font-medium"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="font-semibold text-gray-700">📆 Borrowed Date:</span>
+                  <span id="borrowed-date" class="text-gray-900"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="mt-6" id="description-section">
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">📖 Description</h3>
+            <p id="book-description" class="text-gray-700 leading-relaxed"></p>
+          </div>
+
+          <!-- Actions -->
+          <div class="mt-6 flex gap-3">
+            <button onclick="window.location.href='/'" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-md font-medium transition-colors">
+              🏠 Go to Library
+            </button>
+            <button onclick="window.print()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-md font-medium transition-colors">
+              🖨️ Print
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Get book ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const bookId = urlParams.get('id');
+
+    async function loadBookInfo() {
+      if (!bookId) {
+        showError('No book ID provided in the URL.');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/books/${bookId}/info`);
+        
+        if (!response.ok) {
+          throw new Error('Book not found');
+        }
+
+        const book = await response.json();
+        displayBookInfo(book);
+      } catch (error) {
+        console.error('Error loading book info:', error);
+        showError('Failed to load book information. Please try again.');
+      }
+    }
+
+    function displayBookInfo(book) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('book-info').classList.remove('hidden');
+
+      // Set book details
+      document.getElementById('book-title').textContent = book.title || 'Unknown Title';
+      document.getElementById('book-author').textContent = `by ${book.author || 'Unknown Author'}`;
+      document.getElementById('book-id').textContent = book.id || 'N/A';
+      document.getElementById('book-isbn').textContent = book.isbn || 'N/A';
+      document.getElementById('book-category').textContent = book.category || 'N/A';
+      
+      // Set cover image
+      const coverImg = document.getElementById('book-cover');
+      coverImg.src = book.image || '/uploads/default.jpg';
+      coverImg.onerror = () => { coverImg.src = '/uploads/default.jpg'; };
+
+      // Set optional fields
+      if (book.publisher) {
+        document.getElementById('book-publisher').textContent = book.publisher;
+      } else {
+        document.getElementById('publisher-row').style.display = 'none';
+      }
+
+      if (book.year) {
+        document.getElementById('book-year').textContent = book.year;
+      } else {
+        document.getElementById('year-row').style.display = 'none';
+      }
+
+      // Set description
+      if (book.description) {
+        document.getElementById('book-description').textContent = book.description;
+      } else {
+        document.getElementById('description-section').style.display = 'none';
+      }
+
+      // Set status
+      const statusBadge = document.getElementById('status-badge');
+      if (book.status === 'Available' || book.available === 1) {
+        statusBadge.textContent = '✓ Available';
+        statusBadge.classList.add('available');
+      } else {
+        statusBadge.textContent = '✗ Borrowed';
+        statusBadge.classList.add('borrowed');
+
+        // Show borrowed info if available
+        if (book.borrowedBy) {
+          document.getElementById('borrowed-info').style.display = 'block';
+          document.getElementById('borrowed-by').textContent = book.borrowedBy;
+          
+          if (book.borrowedDate) {
+            const date = new Date(book.borrowedDate);
+            document.getElementById('borrowed-date').textContent = date.toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+          }
+        }
+      }
+
+      // Update page title
+      document.title = `${book.title} - Library System`;
+    }
+
+    function showError(message) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('error').classList.remove('hidden');
+      document.getElementById('error-message').textContent = message;
+    }
+
+    // Load book info on page load
+    loadBookInfo();
+  </script>
+</body>
+</html>

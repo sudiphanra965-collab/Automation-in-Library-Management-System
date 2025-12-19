@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Borrowed Books - OFFLINE MODE</title>
+  <!-- Tailwind CSS - LOCAL (100% Offline) -->
+  <script src="libs/tailwind.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .book-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    .book-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 12px rgba(0,0,0,0.2);
+    }
+    .overdue {
+      border-left: 4px solid #ef4444;
+      background: #fef2f2;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      margin: 5px;
+    }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: #10b981; color: white; }
+    .btn-success:hover { background: #059669; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-secondary:hover { background: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="max-w-6xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-800">📚 My Borrowed Books</h1>
+        <button onclick="window.location.href='/'" class="btn btn-secondary">← Back to Library</button>
+      </div>
+    </div>
+
+    <div id="loading" class="text-center text-white text-xl">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      <p class="mt-4">Loading your books...</p>
+    </div>
+
+    <div id="error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+      <strong>Error:</strong> <span id="error-message"></span>
+      <button onclick="loadBooks()" class="btn btn-primary mt-2">Try Again</button>
+    </div>
+
+    <div id="empty" class="hidden bg-white rounded-lg shadow-lg p-12 text-center">
+      <div class="text-6xl mb-4">📚</div>
+      <h2 class="text-2xl font-bold text-gray-700 mb-2">No Books Borrowed</h2>
+      <p class="text-gray-500 mb-4">You haven't borrowed any books yet.</p>
+      <button onclick="window.location.href='/'" class="btn btn-primary">Browse Library</button>
+    </div>
+
+    <div id="books-container"></div>
+  </div>
+
+  <script>
+    // Auto-detect API base URL - works on both desktop and mobile
+    const API_BASE = window.location.origin;
+    console.log('📱 API_BASE:', API_BASE);
+    console.log('📱 User Agent:', navigator.userAgent);
+    console.log('📱 Screen:', window.screen.width + 'x' + window.screen.height);
+    
+    async function loadBooks() {
+      const loading = document.getElementById('loading');
+      const error = document.getElementById('error');
+      const empty = document.getElementById('empty');
+      const container = document.getElementById('books-container');
+      
+      // Show loading
+      loading.classList.remove('hidden');
+      error.classList.add('hidden');
+      empty.classList.add('hidden');
+      container.innerHTML = '';
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showError('Please login first');
+        setTimeout(() => window.location.href = '/', 2000);
+        return;
+      }
+      
+      try {
+        console.log('📡 Fetching from:', `${API_BASE}/api/user/borrowed-books`);
+        console.log('🔑 Token:', token ? token.substring(0, 30) + '...' : 'NONE');
+        
+        const response = await fetch(`${API_BASE}/api/user/borrowed-books`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log('📥 Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Error response:', errorText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const books = await response.json();
+        console.log('✅ Loaded books:', books.length);
+        
+        loading.classList.add('hidden');
+        
+        if (books.length === 0) {
+          empty.classList.remove('hidden');
+          return;
+        }
+        
+        renderBooks(books);
+        
+      } catch (err) {
+        console.error('❌ Load books error:', err);
+        console.error('Error details:', {
+          message: err.message,
+          name: err.name,
+          stack: err.stack
+        });
+        loading.classList.add('hidden');
+        showError(err.message);
+      }
+    }
+    
+    function renderBooks(books) {
+      const container = document.getElementById('books-container');
+      
+      container.innerHTML = books.map(book => {
+        const borrowDate = new Date(book.borrow_date);
+        const dueDate = new Date(borrowDate);
+        dueDate.setDate(dueDate.getDate() + 14);
+        const now = new Date();
+        const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+        const isOverdue = daysLeft < 0;
+        const fine = isOverdue ? Math.abs(daysLeft) * 5 : 0;
+        
+        return `
+          <div class="book-card ${isOverdue ? 'overdue' : ''}">
+            <div class="flex gap-6">
+              <img src="${book.image || '/uploads/default.jpg'}" 
+                   alt="${book.title}" 
+                   class="w-32 h-48 object-cover rounded-lg shadow-md">
+              
+              <div class="flex-1">
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">${escapeHtml(book.title)}</h3>
+                <p class="text-gray-600 mb-1">👤 ${escapeHtml(book.author)}</p>
+                <p class="text-gray-500 mb-4">🏷️ ${escapeHtml(book.category)}</p>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <span class="text-sm text-gray-500">Borrowed Date:</span>
+                    <p class="font-semibold">${formatDate(borrowDate)}</p>
+                  </div>
+                  <div>
+                    <span class="text-sm text-gray-500">Due Date:</span>
+                    <p class="font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}">
+                      ${formatDate(dueDate)}
+                    </p>
+                  </div>
+                  <div>
+                    <span class="text-sm ${isOverdue ? 'text-red-500' : 'text-gray-500'}">${isOverdue ? '⚠️ Overdue by:' : 'Days Left:'}</span>
+                    <p class="font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}">
+                      ${isOverdue ? Math.abs(daysLeft) + ' days' : daysLeft + ' days'}
+                    </p>
+                  </div>
+                  <div>
+                    <span class="text-sm ${isOverdue ? 'text-red-500' : 'text-gray-500'}">
+                      ${isOverdue ? '💰 Late Fee:' : '💰 Late Fee:'}
+                    </span>
+                    <p class="font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}">
+                      ${isOverdue ? '₹' + fine + ' (₹5/day)' : 'No charges'}
+                    </p>
+                  </div>
+                </div>
+                
+                ${isOverdue ? `
+                  <div style="background: #fee2e2; border-left: 4px solid #ef4444; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: #991b1b;">
+                      <span style="font-size: 20px;">⚠️</span>
+                      <div>
+                        <div style="font-weight: 600; margin-bottom: 4px;">Overdue Book - Late Fee Applied</div>
+                        <div style="font-size: 14px;">
+                          This book is ${Math.abs(daysLeft)} days overdue. 
+                          A late fee of <strong>₹${fine}</strong> has been applied (₹5 per day).
+                          Please return the book as soon as possible to avoid additional charges.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ` : ''}
+                
+                <div class="flex gap-2">
+                  <button onclick="requestReturn(${book.id})" class="btn btn-primary">
+                    📤 Request Return
+                  </button>
+                  ${!isOverdue ? `
+                    <button onclick="requestRenewal(${book.id})" class="btn btn-success">
+                      🔄 Request Renewal
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    async function requestReturn(borrowId) {
+      if (!confirm('Submit a return request? The admin will approve it.')) return;
+      
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch(`${API_BASE}/api/notifications/return-request`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ borrowId })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to submit request');
+        }
+        
+        alert('✅ ' + data.message);
+        loadBooks();
+      } catch (err) {
+        alert('❌ Error: ' + err.message);
+      }
+    }
+    
+    async function requestRenewal(borrowId) {
+      if (!confirm('Submit a renewal request? The admin will approve it.')) return;
+      
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch(`${API_BASE}/api/notifications/renew-request`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ borrowId })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to submit request');
+        }
+        
+        alert('✅ ' + data.message);
+        loadBooks();
+      } catch (err) {
+        alert('❌ Error: ' + err.message);
+      }
+    }
+    
+    function showError(message) {
+      document.getElementById('error').classList.remove('hidden');
+      document.getElementById('error-message').textContent = message;
+    }
+    
+    function formatDate(date) {
+      return date.toLocaleDateString('en-IN', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Load books on page load
+    loadBooks();
+    
+    // Auto-refresh every 10 seconds
+    setInterval(loadBooks, 10000);
+  </script>
+</body>
+</html>
