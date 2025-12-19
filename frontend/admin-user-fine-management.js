@@ -10,7 +10,8 @@ function getAPIBase() {
   if (isIPv4) return `https://${hostname}:5443`;
   return '';
 }
-const API_BASE = getAPIBase();
+// Avoid global const collisions (admin.js also defines API_BASE).
+const API_BASE_FINES = (window.API_BASE != null) ? window.API_BASE : getAPIBase();
 
 let allUsers = [];
 let allFines = [];
@@ -19,7 +20,7 @@ let allFines = [];
 
 async function loadUsers() {
   try {
-    const response = await fetch(`${API_BASE}/api/admin/users?t=${Date.now()}`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/users?t=${Date.now()}`, {
       cache: 'no-store',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -57,7 +58,7 @@ function updateUserStats(users) {
   document.getElementById('admin-users').textContent = adminUsers;
   
   // Get total borrowed books count
-  fetch(`${API_BASE}/api/admin/all-borrowed?t=${Date.now()}`, {
+  fetch(`${API_BASE_FINES}/api/admin/all-borrowed?t=${Date.now()}`, {
     cache: 'no-store',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -134,7 +135,7 @@ function filterUsers() {
 
 async function viewUserDetails(userId) {
   try {
-    const response = await fetch(`${API_BASE}/api/admin/user/${userId}/details`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/user/${userId}/details`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
@@ -157,7 +158,7 @@ async function toggleUserRole(userId, currentIsAdmin) {
   if (!confirm(`Make this user an admin?`)) return;
   
   try {
-    const response = await fetch(`${API_BASE}/api/admin/user/${userId}/toggle-role`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/user/${userId}/toggle-role`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -182,7 +183,7 @@ async function deleteUser(userId) {
   if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
   
   try {
-    const response = await fetch(`${API_BASE}/api/admin/user/${userId}`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/user/${userId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -211,7 +212,7 @@ function refreshUsers() {
 
 async function loadFines() {
   try {
-    const response = await fetch(`${API_BASE}/api/admin/fines`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/fines`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
@@ -299,7 +300,7 @@ async function markFinePaid(borrowId) {
   if (!confirm('Mark this fine as paid?')) return;
   
   try {
-    const response = await fetch(`${API_BASE}/api/admin/fine/${borrowId}/mark-paid`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/fine/${borrowId}/mark-paid`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -324,7 +325,7 @@ async function sendFineReminder(userId, username) {
   if (!confirm(`Send fine reminder to ${username}?`)) return;
   
   try {
-    const response = await fetch(`${API_BASE}/api/admin/fine/${userId}/send-reminder`, {
+    const response = await fetch(`${API_BASE_FINES}/api/admin/fine/${userId}/send-reminder`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
