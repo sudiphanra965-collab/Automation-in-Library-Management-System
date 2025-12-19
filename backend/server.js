@@ -194,16 +194,38 @@ async function initializeDatabase() {
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(book_id, user_id)
   )`);
+  // Notifications table is used by both:
+  // - User notifications (title/link/read)
+  // - Admin workflow requests (borrow/return/renew requests with status + book fields)
+  // So we keep a superset schema.
   await safeRun(`CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     type TEXT NOT NULL,
-    title TEXT NOT NULL,
+    title TEXT,
     message TEXT NOT NULL,
     link TEXT,
     read INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    -- Admin workflow fields (optional for user-only notifications)
+    username TEXT,
+    book_id INTEGER,
+    book_title TEXT,
+    borrow_id INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'pending',
+    resolved_at DATETIME,
+    resolved_by TEXT
   )`);
+
+  // Ensure admin-workflow columns exist if DB was created by an older version (best-effort)
+  await safeRun(`ALTER TABLE notifications ADD COLUMN username TEXT`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN book_id INTEGER`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN book_title TEXT`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN borrow_id INTEGER DEFAULT 0`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'pending'`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN resolved_at DATETIME`);
+  await safeRun(`ALTER TABLE notifications ADD COLUMN resolved_by TEXT`);
   await safeRun(`CREATE TABLE IF NOT EXISTS reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     book_id INTEGER NOT NULL,
@@ -771,14 +793,82 @@ app.post('/api/notifications/borrow-request', authenticateToken, async (req, res
     }
 
     await run(`
-      INSERT INTO notifications (type, user_id, username, book_id, book_title, borrow_id, message)
-      VALUES ('borrow_request', ?, ?, ?, ?, 0, ?)
+      INSERT INTO notifications (type, user_id, username, book_id, book_title, borrow_id, title, message, status, read)
+      VALUES ('borrow_request', ?, ?, ?, ?, 0, 'Borrow Request', ?, 'pending', 0)
     `, [userId, username, book.id, book.title, `${username} requests to borrow "${book.title}"`]);
 
     res.json({ message: 'Borrow request sent to admin' });
   } catch (error) {
     console.error('Borrow request error (HTTP):', error);
     res.status(500).json({ error: 'Failed to submit borrow request' });
+  }
+});
+
+// User: Request return (creates admin notification)
+app.post('/api/notifications/return-request', authenticateToken, async (req, res) => {
+  try {
+    const { borrowId } = req.body;
+    const userId = req.user.id;
+
+    const borrow = await get(`
+      SELECT bb.*, b.title, u.username
+      FROM borrowed_books bb
+      JOIN books b ON bb.book_id = b.id
+      JOIN users u ON bb.user_id = u.id
+      WHERE bb.id = ? AND bb.user_id = ?
+    `, [borrowId, userId]);
+
+    if (!borrow) return res.status(404).json({ error: 'Borrowed book not found' });
+
+    const existing = await get(`
+      SELECT id FROM notifications
+      WHERE borrow_id = ? AND type = 'return_request' AND status = 'pending'
+    `, [borrowId]);
+    if (existing) return res.status(400).json({ error: 'Return request already pending' });
+
+    await run(`
+      INSERT INTO notifications (type, user_id, username, book_id, book_title, borrow_id, title, message, status, read)
+      VALUES ('return_request', ?, ?, ?, ?, ?, 'Return Request', ?, 'pending', 0)
+    `, [userId, borrow.username, borrow.book_id, borrow.title, borrowId, `${borrow.username} requests to return "${borrow.title}"`]);
+
+    res.json({ message: 'Return request submitted successfully' });
+  } catch (e) {
+    console.error('Return request error:', e);
+    res.status(500).json({ error: 'Failed to submit return request' });
+  }
+});
+
+// User: Request renewal (creates admin notification)
+app.post('/api/notifications/renew-request', authenticateToken, async (req, res) => {
+  try {
+    const { borrowId } = req.body;
+    const userId = req.user.id;
+
+    const borrow = await get(`
+      SELECT bb.*, b.title, u.username
+      FROM borrowed_books bb
+      JOIN books b ON bb.book_id = b.id
+      JOIN users u ON bb.user_id = u.id
+      WHERE bb.id = ? AND bb.user_id = ?
+    `, [borrowId, userId]);
+
+    if (!borrow) return res.status(404).json({ error: 'Borrowed book not found' });
+
+    const existing = await get(`
+      SELECT id FROM notifications
+      WHERE borrow_id = ? AND type = 'renew_request' AND status = 'pending'
+    `, [borrowId]);
+    if (existing) return res.status(400).json({ error: 'Renewal request already pending' });
+
+    await run(`
+      INSERT INTO notifications (type, user_id, username, book_id, book_title, borrow_id, title, message, status, read)
+      VALUES ('renew_request', ?, ?, ?, ?, ?, 'Renewal Request', ?, 'pending', 0)
+    `, [userId, borrow.username, borrow.book_id, borrow.title, borrowId, `${borrow.username} requests to renew "${borrow.title}"`]);
+
+    res.json({ message: 'Renewal request submitted successfully' });
+  } catch (e) {
+    console.error('Renew request error:', e);
+    res.status(500).json({ error: 'Failed to submit renewal request' });
   }
 });
 
@@ -790,12 +880,45 @@ app.get('/api/my-books', authenticateToken, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to fetch borrowed books.' }); }
 });
 
-// Admin endpoint to get all users
+// Admin endpoint to get all users (with details + borrowed count)
+async function getAdminUsersList() {
+  return await all(`
+    SELECT
+      u.id,
+      u.username,
+      u.email,
+      u.full_name,
+      u.roll_no,
+      u.mobile_no,
+      u.user_photo,
+      u.is_admin,
+      u.role,
+      u.verification_status,
+      COALESCE((SELECT COUNT(*) FROM borrowed_books bb WHERE bb.user_id = u.id), 0) as borrowed_count
+    FROM users u
+    ORDER BY u.id ASC
+  `);
+}
+
+app.get('/api/admin/users', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const users = await getAdminUsersList();
+    res.json(users);
+  } catch (e) {
+    console.error('Admin users fetch error:', e);
+    res.status(500).json({ error: 'Failed to retrieve users.' });
+  }
+});
+
+// Compatibility alias (some pages call /api/admin/users/all)
 app.get('/api/admin/users/all', authenticateToken, authorizeAdmin, async (req, res) => {
   try {
-    const rows = await all('SELECT id, username, is_admin FROM users');
-    res.json(rows);
-  } catch (e) { res.status(500).json({ error: 'Failed to retrieve users.' }); }
+    const users = await getAdminUsersList();
+    res.json(users);
+  } catch (e) {
+    console.error('Admin users(all) fetch error:', e);
+    res.status(500).json({ error: 'Failed to retrieve users.' });
+  }
 });
 
 // Get dashboard statistics
@@ -1098,6 +1221,22 @@ app.post('/api/admin/borrowed/:id/return', authenticateToken, authorizeAdmin, as
   }
 });
 
+// Compatibility endpoint used by some admin pages
+app.get('/api/admin/all-borrowed', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const borrowed = await all(
+      `SELECT bb.id, b.title, b.author, u.username, bb.borrow_date, b.id as book_id, u.id as user_id
+       FROM borrowed_books bb
+       JOIN books b ON bb.book_id = b.id
+       JOIN users u ON bb.user_id = u.id`
+    );
+    res.json(borrowed);
+  } catch (e) {
+    console.error('Admin all-borrowed fetch error:', e);
+    res.status(500).json({ error: 'Failed to fetch borrowed books' });
+  }
+});
+
 // Admin: get complete borrow history with all transactions
 app.get('/api/admin/borrow-history', authenticateToken, authorizeAdmin, async (req, res) => {
   try {
@@ -1349,6 +1488,167 @@ setInterval(autoSyncHistory, 10000);
 // Import and use new features router
 const newFeaturesRouter = require('./new-features-api')(get, all, run, authenticateToken);
 app.use(newFeaturesRouter);
+
+// ==================== ADMIN: STUDENT REGISTRATIONS (Cloud/HTTP) ====================
+app.get('/api/admin/pending-registrations', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const pending = await all(`
+      SELECT id, username, full_name, roll_no, date_of_birth, mobile_no, email,
+             user_photo, id_proof_photo, registration_date, verification_status
+      FROM users
+      WHERE verification_status = 'pending'
+      ORDER BY registration_date DESC
+    `);
+    res.json(pending);
+  } catch (e) {
+    console.error('Get pending registrations error:', e);
+    res.status(500).json({ error: 'Failed to fetch pending registrations' });
+  }
+});
+
+app.get('/api/admin/all-registrations', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const regs = await all(`
+      SELECT id, username, full_name, roll_no, date_of_birth, mobile_no, email,
+             user_photo, id_proof_photo, registration_date, verification_status,
+             verified_date, rejection_reason
+      FROM users
+      WHERE full_name IS NOT NULL
+      ORDER BY registration_date DESC
+    `);
+    res.json(regs);
+  } catch (e) {
+    console.error('Get all registrations error:', e);
+    res.status(500).json({ error: 'Failed to fetch registrations' });
+  }
+});
+
+app.post('/api/admin/approve-registration/:userId', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const adminId = req.user.id;
+
+    await run(`
+      UPDATE users
+      SET is_verified = 1,
+          verification_status = 'approved',
+          verified_by = ?,
+          verified_date = datetime('now')
+      WHERE id = ?
+    `, [adminId, userId]);
+
+    const user = await get('SELECT username, full_name FROM users WHERE id = ?', [userId]);
+    res.json({ message: 'Registration approved successfully', user });
+  } catch (e) {
+    console.error('Approve registration error:', e);
+    res.status(500).json({ error: 'Failed to approve registration' });
+  }
+});
+
+// Reject registration (keep record + reason so admin history works on cloud)
+app.post('/api/admin/reject-registration/:userId', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const reason = (req.body && req.body.reason) ? String(req.body.reason).trim() : 'Rejected';
+    const adminId = req.user.id;
+
+    await run(`
+      UPDATE users
+      SET is_verified = 2,
+          verification_status = 'rejected',
+          rejection_reason = ?,
+          verified_by = ?,
+          verified_date = datetime('now')
+      WHERE id = ?
+    `, [reason, adminId, userId]);
+
+    const user = await get('SELECT username, full_name FROM users WHERE id = ?', [userId]);
+    res.json({ message: 'Registration rejected', user });
+  } catch (e) {
+    console.error('Reject registration error:', e);
+    res.status(500).json({ error: 'Failed to reject registration' });
+  }
+});
+
+// ==================== ADMIN: NOTIFICATIONS (Cloud/HTTP) ====================
+app.get('/api/admin/notifications', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const notifications = await all(`
+      SELECT * FROM notifications
+      WHERE status = 'pending'
+      ORDER BY created_at DESC
+    `);
+    res.json(notifications);
+  } catch (e) {
+    console.error('Get notifications error:', e);
+    res.status(500).json({ error: 'Failed to get notifications' });
+  }
+});
+
+app.get('/api/admin/notifications/count', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const result = await get(`SELECT COUNT(*) as count FROM notifications WHERE status = 'pending'`);
+    res.json({ count: result.count || 0 });
+  } catch (e) {
+    console.error('Get notification count error:', e);
+    res.status(500).json({ error: 'Failed to get notification count' });
+  }
+});
+
+app.post('/api/admin/notifications/:id/approve-return', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const adminUsername = req.user.username;
+
+    const notification = await get('SELECT * FROM notifications WHERE id = ?', [notificationId]);
+    if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+    const borrowId = notification.borrow_id;
+    const borrow = await get('SELECT * FROM borrowed_books WHERE id = ?', [borrowId]);
+    if (!borrow) return res.status(404).json({ error: 'Borrowed book not found' });
+
+    // Set book available again (boolean available 0/1)
+    await run('UPDATE books SET available = 1 WHERE id = ?', [borrow.book_id]);
+    await run('DELETE FROM borrowed_books WHERE id = ?', [borrowId]);
+
+    await run(`UPDATE notifications SET status = 'approved', resolved_at = datetime('now'), resolved_by = ? WHERE id = ?`, [adminUsername, notificationId]);
+    res.json({ message: 'Return approved successfully' });
+  } catch (e) {
+    console.error('Approve return error:', e);
+    res.status(500).json({ error: 'Failed to approve return' });
+  }
+});
+
+app.post('/api/admin/notifications/:id/approve-renew', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const adminUsername = req.user.username;
+
+    const notification = await get('SELECT * FROM notifications WHERE id = ?', [notificationId]);
+    if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+    const borrowId = notification.borrow_id;
+    await run(`UPDATE borrowed_books SET borrow_date = datetime('now') WHERE id = ?`, [borrowId]);
+
+    await run(`UPDATE notifications SET status = 'approved', resolved_at = datetime('now'), resolved_by = ? WHERE id = ?`, [adminUsername, notificationId]);
+    res.json({ message: 'Renewal approved successfully' });
+  } catch (e) {
+    console.error('Approve renewal error:', e);
+    res.status(500).json({ error: 'Failed to approve renewal' });
+  }
+});
+
+app.post('/api/admin/notifications/:id/reject', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const notificationId = req.params.id;
+    const adminUsername = req.user.username;
+    await run(`UPDATE notifications SET status = 'rejected', resolved_at = datetime('now'), resolved_by = ? WHERE id = ?`, [adminUsername, notificationId]);
+    res.json({ message: 'Request rejected' });
+  } catch (e) {
+    console.error('Reject notification error:', e);
+    res.status(500).json({ error: 'Failed to reject request' });
+  }
+});
 
 // Start server (after DB init so cloud deploys don't 500 on /api/books)
 (async () => {
