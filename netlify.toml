@@ -1,0 +1,10 @@
+[build]
+  # This project is a static site (HTML/CSS/JS) served from /frontend
+  publish = "frontend"
+  command = ""
+
+[build.environment]
+  # Avoid Netlify trying to enforce a specific Node build; no build step needed.
+  NODE_VERSION = "18"
+
+
