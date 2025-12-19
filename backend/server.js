@@ -2,6 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
@@ -216,24 +217,80 @@ async function initializeDatabase() {
 
   // Seed books if empty
   const row = await get('SELECT COUNT(*) AS c FROM books');
-  if (!row || row.c === 0) {
-    const samples = [
-      ["Cosmos", "Carl Sagan", "9780345539434", "Science", "A journey through the universe exploring astronomy and cosmology", "/uploads/science.jpg", "Ballantine Books", 1980, "Cosmos traces the origins of knowledge and the scientific method...", "Chapter 1: The Shores of the Cosmic Ocean", "astronomy, cosmology, science"],
-      ["A Brief History of Time", "Stephen Hawking", "9780553380163", "Science", "From the Big Bang to black holes - cosmology explained", "/uploads/science.jpg", "Bantam Books", 1988, "A landmark volume in science writing...", "Chapter 1: Our Picture of the Universe", "physics, cosmology, black holes"],
-      ["Code Complete", "Steve McConnell", "9780735619678", "Technology", "A practical handbook of software construction", "/uploads/technology.jpg", "Microsoft Press", 2004, "Widely considered one of the best practical guides to programming...", "Part I: Laying the Foundation", "software engineering, programming, best practices"],
-      ["Introduction to Algorithms", "Thomas H. Cormen", "9780262033848", "Technology", "Comprehensive textbook on algorithms and data structures", "/uploads/technology.jpg", "MIT Press", 2009, "Rigorous and comprehensive algorithms text...", "Part I: Foundations", "algorithms, data structures, computer science"],
-      ["Structures: Or Why Things Don't Fall Down", "J.E. Gordon", "9780306812835", "Engineering", "The science of structural engineering explained", "/uploads/engineering.jpg", "Da Capo Press", 1978, "Engineering principles in accessible prose...", "Chapter 1: Why structures carry loads", "structural engineering, mechanics, materials"],
-      ["Calculus: Early Transcendentals", "James Stewart", "9781285740621", "Mathematics", "Comprehensive calculus textbook with applications", "/uploads/math.jpg", "Cengage Learning", 2015, "Stewart's calculus with precision and clarity...", "Chapter 1: Functions and Models", "calculus, mathematics, derivatives, integrals"],
-      ["Sapiens: A Brief History of Humankind", "Yuval Noah Harari", "9780062316097", "History", "The story of how humans conquered the world", "/uploads/history.jpg", "Harper", 2014, "A narrative of humanity's creation and evolution...", "Part One: The Cognitive Revolution", "anthropology, civilization, history"],
-      ["Pride and Prejudice", "Jane Austen", "9780141199078", "Literature", "Classic romance novel of manners and marriage", "/uploads/literature.jpg", "Penguin Classics", 1813, "A classic of manners and marriage...", "Chapter 1: It is a truth universally acknowledged...", "romance, classic literature, social commentary"]
-    ];
-    const stmt = db.prepare('INSERT INTO books (title, author, isbn, category, description, image, publisher, year, abstract, toc, subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    samples.forEach(s => stmt.run(s));
-    await new Promise((resolve) => stmt.finalize(resolve));
-    // Backfill FTS index
+  const currentCount = (row && typeof row.c === 'number') ? row.c : 0;
+
+  // Prefer seeding from a committed dataset (backend/seed-books.json) when available.
+  const seedPath = path.join(__dirname, 'seed-books.json');
+  let seedBooks = null;
+  try {
+    if (fs.existsSync(seedPath)) {
+      seedBooks = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+      if (!Array.isArray(seedBooks)) seedBooks = null;
+    }
+  } catch (e) {
+    console.error('⚠️ Failed to read seed-books.json:', e.message);
+    seedBooks = null;
+  }
+
+  const normalizeImage = (img) => {
+    const s = String(img || '').trim();
+    if (!s) return '/uploads/default.jpg';
+    if (s.startsWith('http://') || s.startsWith('https://')) return s;
+    if (s.startsWith('/uploads/')) return s;
+    return '/uploads/default.jpg';
+  };
+
+  if (seedBooks && (currentCount === 0 || currentCount < seedBooks.length)) {
+    // Insert missing books (best-effort). We don't assume any unique constraints exist.
+    let inserted = 0;
+    for (const b of seedBooks) {
+      const title = String(b.title || '').trim();
+      const author = String(b.author || '').trim();
+      const isbn = String(b.isbn || '').trim();
+      if (!title) continue;
+      const exists = await get('SELECT id FROM books WHERE title = ? AND author = ? AND isbn = ? LIMIT 1', [title, author, isbn]);
+      if (exists) continue;
+      await safeRun(
+        `INSERT INTO books (title, author, isbn, category, description, image, available, publisher, year, abstract, toc, subjects, rating, review_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          author,
+          isbn,
+          String(b.category || ''),
+          String(b.description || ''),
+          normalizeImage(b.image),
+          (b.available == null ? 1 : (b.available ? 1 : 0)),
+          String(b.publisher || ''),
+          (b.year == null || b.year === '' ? null : Number(b.year)),
+          String(b.abstract || ''),
+          String(b.toc || ''),
+          String(b.subjects || ''),
+          Number(b.rating || 0),
+          Number(b.review_count || 0)
+        ]
+      );
+      inserted++;
+    }
+
+    // Backfill FTS index (best-effort, avoid duplicates by full rebuild when small)
+    await safeRun('DELETE FROM books_fts');
     await safeRun(`INSERT INTO books_fts(rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
                   SELECT id, title, author, isbn, IFNULL(publisher,''), IFNULL(year,''), IFNULL(abstract,''), IFNULL(toc,''), IFNULL(subjects,''), IFNULL(category,'') FROM books`);
-    console.log('✅ Seeded sample books (cloud init)');
+    console.log(`✅ Seeded books from seed-books.json (+${inserted})`);
+  } else if (currentCount === 0) {
+    // Fallback minimal demo data
+    const samples = [
+      ["Cosmos", "Carl Sagan", "9780345539434", "Science", "A journey through the universe exploring astronomy and cosmology", "/uploads/science.jpg", 1, "Ballantine Books", 1980, "Cosmos traces the origins of knowledge and the scientific method...", "Chapter 1: The Shores of the Cosmic Ocean", "astronomy, cosmology, science"],
+      ["A Brief History of Time", "Stephen Hawking", "9780553380163", "Science", "From the Big Bang to black holes - cosmology explained", "/uploads/science.jpg", 1, "Bantam Books", 1988, "A landmark volume in science writing...", "Chapter 1: Our Picture of the Universe", "physics, cosmology, black holes"],
+      ["Code Complete", "Steve McConnell", "9780735619678", "Technology", "A practical handbook of software construction", "/uploads/technology.jpg", 1, "Microsoft Press", 2004, "Widely considered one of the best practical guides to programming...", "Part I: Laying the Foundation", "software engineering, programming, best practices"]
+    ];
+    const stmt = db.prepare('INSERT INTO books (title, author, isbn, category, description, image, available, publisher, year, abstract, toc, subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    samples.forEach(s => stmt.run(s));
+    await new Promise((resolve) => stmt.finalize(resolve));
+    await safeRun(`INSERT INTO books_fts(rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+                  SELECT id, title, author, isbn, IFNULL(publisher,''), IFNULL(year,''), IFNULL(abstract,''), IFNULL(toc,''), IFNULL(subjects,''), IFNULL(category,'') FROM books`);
+    console.log('✅ Seeded fallback sample books (cloud init)');
   }
 
   // Create default admin user if missing (admin/admin)
