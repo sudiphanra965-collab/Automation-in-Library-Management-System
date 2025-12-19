@@ -1,13 +1,9 @@
 // Service Worker for PWA functionality
-const CACHE_NAME = 'library-v1';
+// Bump this on deploy to force fast updates
+const CACHE_NAME = 'library-v3';
+// Cache only minimal shell assets. We avoid caching JS/CSS/HTML aggressively so Netlify updates apply immediately.
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/admin.html',
-  '/style.css',
-  '/script.js',
-  '/admin.js',
-  '/responsive.css',
   '/manifest.json'
 ];
 
@@ -54,38 +50,22 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/api/')) {
     return event.respondWith(fetch(event.request));
   }
-  
+
+  // Network-first for navigations and static files so updates apply immediately.
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        
-        // Clone the request
-        const fetchRequest = event.request.clone();
-        
-        return fetch(fetchRequest).then((response) => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-          
-          // Clone the response
+        // Best-effort cache only same-origin successful responses
+        if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
-          
-          // Cache the fetched response
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          
-          return response;
-        }).catch(() => {
-          // Network failed, return offline page if available
-          return caches.match('/index.html');
-        });
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+        }
+        return response;
+      })
+      .catch(async () => {
+        // Offline fallback
+        const cached = await caches.match(event.request);
+        return cached || caches.match('/');
       })
   );
 });

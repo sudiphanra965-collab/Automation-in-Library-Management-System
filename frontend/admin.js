@@ -64,10 +64,14 @@ function openGateScanner() {
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
     let httpsURL;
-    if (isLocalhost) {
+    // Hosted deployments are already HTTPS; open normally without forcing :5443.
+    const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(window.location.hostname);
+    if (!isIPv4 && !isLocalhost) {
+      httpsURL = '/gate-scanner.html';
+    } else if (isLocalhost) {
       httpsURL = 'https://localhost:5443/gate-scanner.html';
     } else {
-      httpsURL = 'https://10.237.19.96:5443/gate-scanner.html';
+      httpsURL = `https://${window.location.hostname}:5443/gate-scanner.html`;
     }
     
     // Show helpful message
@@ -730,7 +734,7 @@ async function showAllUsers() {
 // Load User Management dashboard stats
 async function loadUserManagementStats() {
   try {
-    const apiBase = window.location.hostname === 'localhost' ? 'https://localhost:5443' : `https://${window.location.hostname}:5443`;
+    const apiBase = API_BASE || '';
     const response = await fetch(`${apiBase}/api/admin/users?t=${Date.now()}`, {
       cache: 'no-store',
       headers: {
@@ -781,7 +785,7 @@ async function loadUsersData() {
     // Load stats first
     await loadUserManagementStats();
     
-    const apiBase = window.location.hostname === 'localhost' ? 'https://localhost:5443' : `https://${window.location.hostname}:5443`;
+    const apiBase = API_BASE || '';
     const res = await fetch(`${apiBase}/api/admin/users?t=${Date.now()}`, { headers: { ...authHeaders(), 'Cache-Control': 'no-store' }, cache: 'no-store' });
     if (!res.ok) {
       console.error('Failed to load users');
