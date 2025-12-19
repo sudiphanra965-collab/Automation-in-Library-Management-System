@@ -12,11 +12,12 @@
   const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
   // Add device classes to body
-  document.body.classList.add(
+  const deviceClasses = [
     isMobile ? 'is-mobile' : 'is-desktop',
-    isTablet ? 'is-tablet' : '',
+    isTablet ? 'is-tablet' : null,
     isTouchDevice ? 'is-touch' : 'is-mouse'
-  );
+  ].filter(Boolean);
+  document.body.classList.add(...deviceClasses);
 
   // ===== LAZY LOADING IMAGES =====
   const lazyLoadImages = () => {

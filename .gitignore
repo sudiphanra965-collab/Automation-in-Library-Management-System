@@ -32,6 +32,16 @@ desktop.ini
 **/uploads/*
 !**/uploads/.gitkeep
 
+# Keep built-in static assets that the app depends on (category images/background/default)
+!**/uploads/background.jpg
+!**/uploads/default.jpg
+!**/uploads/science.jpg
+!**/uploads/technology.jpg
+!**/uploads/engineering.jpg
+!**/uploads/math.jpg
+!**/uploads/history.jpg
+!**/uploads/literature.jpg
+
 # HTTPS self-signed certs (do not commit private keys)
 **/*-key.pem
 **/*-cert.pem

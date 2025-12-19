@@ -39,6 +39,216 @@ const run = (sql, params=[]) => new Promise((res, rej) => db.run(sql, params, fu
 const all = (sql, params=[]) => new Promise((res, rej) => db.all(sql, params, (err, rows) => err ? rej(err) : res(rows)));
 const get = (sql, params=[]) => new Promise((res, rej) => db.get(sql, params, (err, row) => err ? rej(err) : res(row)));
 
+// ==================== DATABASE AUTO-INIT (for cloud deploys) ====================
+// Render/Netlify deploys do not include local `library.db` (we don't commit DB files).
+// This ensures the DB schema exists and seeds sample data when empty.
+async function initializeDatabase() {
+  const safeRun = async (sql, params = []) => {
+    try { await run(sql, params); } catch (_) { /* best-effort */ }
+  };
+
+  // Users (full schema for registration + admin)
+  await safeRun(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT,
+    email TEXT,
+    role TEXT,
+    is_admin INTEGER DEFAULT 0,
+    full_name TEXT,
+    roll_no TEXT UNIQUE,
+    date_of_birth TEXT,
+    mobile_no TEXT,
+    user_photo TEXT,
+    id_proof_photo TEXT,
+    is_verified INTEGER DEFAULT 0,
+    verification_status TEXT DEFAULT 'pending',
+    registration_date TEXT,
+    verified_by INTEGER,
+    verified_date TEXT,
+    rejection_reason TEXT
+  )`);
+
+  // Books (full schema)
+  await safeRun(`CREATE TABLE IF NOT EXISTS books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    author TEXT,
+    isbn TEXT,
+    category TEXT,
+    description TEXT,
+    image TEXT,
+    available INTEGER DEFAULT 1,
+    publisher TEXT,
+    year INTEGER,
+    abstract TEXT,
+    toc TEXT,
+    subjects TEXT,
+    rating REAL DEFAULT 0,
+    review_count INTEGER DEFAULT 0
+  )`);
+
+  // FTS (optional but used by advanced search)
+  await safeRun(`CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
+    title, author, isbn, publisher, year, abstract, toc, subjects, category,
+    content='books', content_rowid='id', tokenize='porter'
+  )`);
+  await safeRun(`CREATE TRIGGER IF NOT EXISTS books_ai AFTER INSERT ON books BEGIN
+    INSERT INTO books_fts(rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+    VALUES (new.id, new.title, new.author, new.isbn, new.publisher, new.year, new.abstract, new.toc, new.subjects, new.category);
+  END`);
+  await safeRun(`CREATE TRIGGER IF NOT EXISTS books_au AFTER UPDATE ON books BEGIN
+    INSERT INTO books_fts(books_fts, rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+    VALUES('delete', old.id, old.title, old.author, old.isbn, old.publisher, old.year, old.abstract, old.toc, old.subjects, old.category);
+    INSERT INTO books_fts(rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+    VALUES (new.id, new.title, new.author, new.isbn, new.publisher, new.year, new.abstract, new.toc, new.subjects, new.category);
+  END`);
+  await safeRun(`CREATE TRIGGER IF NOT EXISTS books_ad AFTER DELETE ON books BEGIN
+    INSERT INTO books_fts(books_fts, rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+    VALUES('delete', old.id, old.title, old.author, old.isbn, old.publisher, old.year, old.abstract, old.toc, old.subjects, old.category);
+  END`);
+
+  // Borrowed books + due dates + fine_paid
+  await safeRun(`CREATE TABLE IF NOT EXISTS borrowed_books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER,
+    user_id INTEGER,
+    borrowed_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    due_date DATETIME,
+    returned_date DATETIME,
+    borrow_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fine_paid INTEGER DEFAULT 0
+  )`);
+
+  // Borrow history (used by auto-sync + admin history UI)
+  await safeRun(`CREATE TABLE IF NOT EXISTS borrow_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    username TEXT,
+    book_title TEXT,
+    book_author TEXT,
+    book_isbn TEXT,
+    issue_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    return_date DATETIME,
+    due_date DATETIME,
+    fine_amount DECIMAL(10,2) DEFAULT 0,
+    fine_paid INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'borrowed',
+    issued_by TEXT,
+    returned_to TEXT,
+    notes TEXT
+  )`);
+
+  // New features tables (best-effort)
+  await safeRun(`CREATE TABLE IF NOT EXISTS reading_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS list_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    list_id INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    UNIQUE(list_id, book_id)
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+    review_text TEXT,
+    helpful_count INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(book_id, user_id)
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    link TEXT,
+    read INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS reservations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'available', 'expired', 'cancelled')),
+    reserved_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notified_at DATETIME,
+    expires_at DATETIME
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    criteria TEXT NOT NULL,
+    points INTEGER DEFAULT 0
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS user_achievements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    achievement_id INTEGER NOT NULL,
+    unlocked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, achievement_id)
+  )`);
+  await safeRun(`CREATE TABLE IF NOT EXISTS user_stats (
+    user_id INTEGER PRIMARY KEY,
+    total_borrowed INTEGER DEFAULT 0,
+    total_returned INTEGER DEFAULT 0,
+    currently_borrowed INTEGER DEFAULT 0,
+    reading_streak INTEGER DEFAULT 0,
+    last_borrow_date DATE,
+    favorite_category TEXT,
+    total_points INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Seed books if empty
+  const row = await get('SELECT COUNT(*) AS c FROM books');
+  if (!row || row.c === 0) {
+    const samples = [
+      ["Cosmos", "Carl Sagan", "9780345539434", "Science", "A journey through the universe exploring astronomy and cosmology", "/uploads/science.jpg", "Ballantine Books", 1980, "Cosmos traces the origins of knowledge and the scientific method...", "Chapter 1: The Shores of the Cosmic Ocean", "astronomy, cosmology, science"],
+      ["A Brief History of Time", "Stephen Hawking", "9780553380163", "Science", "From the Big Bang to black holes - cosmology explained", "/uploads/science.jpg", "Bantam Books", 1988, "A landmark volume in science writing...", "Chapter 1: Our Picture of the Universe", "physics, cosmology, black holes"],
+      ["Code Complete", "Steve McConnell", "9780735619678", "Technology", "A practical handbook of software construction", "/uploads/technology.jpg", "Microsoft Press", 2004, "Widely considered one of the best practical guides to programming...", "Part I: Laying the Foundation", "software engineering, programming, best practices"],
+      ["Introduction to Algorithms", "Thomas H. Cormen", "9780262033848", "Technology", "Comprehensive textbook on algorithms and data structures", "/uploads/technology.jpg", "MIT Press", 2009, "Rigorous and comprehensive algorithms text...", "Part I: Foundations", "algorithms, data structures, computer science"],
+      ["Structures: Or Why Things Don't Fall Down", "J.E. Gordon", "9780306812835", "Engineering", "The science of structural engineering explained", "/uploads/engineering.jpg", "Da Capo Press", 1978, "Engineering principles in accessible prose...", "Chapter 1: Why structures carry loads", "structural engineering, mechanics, materials"],
+      ["Calculus: Early Transcendentals", "James Stewart", "9781285740621", "Mathematics", "Comprehensive calculus textbook with applications", "/uploads/math.jpg", "Cengage Learning", 2015, "Stewart's calculus with precision and clarity...", "Chapter 1: Functions and Models", "calculus, mathematics, derivatives, integrals"],
+      ["Sapiens: A Brief History of Humankind", "Yuval Noah Harari", "9780062316097", "History", "The story of how humans conquered the world", "/uploads/history.jpg", "Harper", 2014, "A narrative of humanity's creation and evolution...", "Part One: The Cognitive Revolution", "anthropology, civilization, history"],
+      ["Pride and Prejudice", "Jane Austen", "9780141199078", "Literature", "Classic romance novel of manners and marriage", "/uploads/literature.jpg", "Penguin Classics", 1813, "A classic of manners and marriage...", "Chapter 1: It is a truth universally acknowledged...", "romance, classic literature, social commentary"]
+    ];
+    const stmt = db.prepare('INSERT INTO books (title, author, isbn, category, description, image, publisher, year, abstract, toc, subjects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    samples.forEach(s => stmt.run(s));
+    await new Promise((resolve) => stmt.finalize(resolve));
+    // Backfill FTS index
+    await safeRun(`INSERT INTO books_fts(rowid, title, author, isbn, publisher, year, abstract, toc, subjects, category)
+                  SELECT id, title, author, isbn, IFNULL(publisher,''), IFNULL(year,''), IFNULL(abstract,''), IFNULL(toc,''), IFNULL(subjects,''), IFNULL(category,'') FROM books`);
+    console.log('✅ Seeded sample books (cloud init)');
+  }
+
+  // Create default admin user if missing (admin/admin)
+  const admin = await get('SELECT id FROM users WHERE username = ?', ['admin']);
+  if (!admin) {
+    const hash = bcrypt.hashSync('admin', 10);
+    await safeRun(
+      `INSERT INTO users (username, password, is_admin, role, verification_status, is_verified)
+       VALUES (?, ?, 1, 'admin', 'approved', 1)`,
+      ['admin', hash]
+    );
+    console.log('✅ Created default admin user (admin/admin)');
+  }
+}
+
 // multer for uploads
 const storage = multer.diskStorage({
   destination: path.join(__dirname, '../frontend/uploads'),
@@ -1021,18 +1231,27 @@ async function autoSyncHistory() {
 // Run auto-sync every 10 seconds
 setInterval(autoSyncHistory, 10000);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log('🔄 Auto-sync enabled: History syncs every 10 seconds');
-  // Run initial sync
-  autoSyncHistory();
-});
-
 // ==================== NEW FEATURES API ====================
 // Import and use new features router
 const newFeaturesRouter = require('./new-features-api')(get, all, run, authenticateToken);
 app.use(newFeaturesRouter);
+
+// Start server (after DB init so cloud deploys don't 500 on /api/books)
+(async () => {
+  try {
+    await initializeDatabase();
+    console.log('✅ Database initialized');
+  } catch (e) {
+    console.error('❌ Database initialization failed:', e);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+    console.log('🔄 Auto-sync enabled: History syncs every 10 seconds');
+    // Run initial sync
+    autoSyncHistory();
+  });
+})();
 
 // Note: Static files are served by express.static middleware above
 // This catch-all is only for client-side routing fallback
