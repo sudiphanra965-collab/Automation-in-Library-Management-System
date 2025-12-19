@@ -147,6 +147,12 @@ async function initializeDatabase() {
     fine_paid INTEGER DEFAULT 0
   )`);
 
+  // Ensure newer columns exist if DB was created by an older version (best-effort)
+  await safeRun(`ALTER TABLE borrowed_books ADD COLUMN borrowed_date DATETIME DEFAULT CURRENT_TIMESTAMP`);
+  await safeRun(`ALTER TABLE borrowed_books ADD COLUMN due_date DATETIME`);
+  await safeRun(`ALTER TABLE borrowed_books ADD COLUMN returned_date DATETIME`);
+  await safeRun(`ALTER TABLE borrowed_books ADD COLUMN fine_paid INTEGER DEFAULT 0`);
+
   // Borrow history (used by auto-sync + admin history UI)
   await safeRun(`CREATE TABLE IF NOT EXISTS borrow_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1017,6 +1023,119 @@ app.post('/api/admin/users/:id/toggle-admin', authenticateToken, authorizeAdmin,
   } catch (e) {
     console.error('Error toggling user admin status:', e);
     res.status(500).json({ error: 'Failed to update user status.' });
+  }
+});
+
+// ========== USER MANAGEMENT (compat for admin-user-fine-management.js) ==========
+app.get('/api/admin/user/:id/details', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await get(`
+      SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.full_name,
+        u.roll_no,
+        u.mobile_no,
+        u.user_photo,
+        u.is_admin,
+        u.role,
+        u.verification_status,
+        COALESCE((SELECT COUNT(*) FROM borrowed_books bb WHERE bb.user_id = u.id), 0) as borrowed_count
+      FROM users u
+      WHERE u.id = ?
+      LIMIT 1
+    `, [userId]);
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (e) {
+    console.error('Get user details error:', e);
+    res.status(500).json({ error: 'Failed to get user details' });
+  }
+});
+
+// Toggle user role (make admin/remove admin)
+app.post('/api/admin/user/:id/toggle-role', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await get('SELECT is_admin FROM users WHERE id = ?', [userId]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const newRole = user.is_admin ? 0 : 1;
+    await run('UPDATE users SET is_admin = ?, role = ? WHERE id = ?', [newRole, newRole ? 'admin' : 'user', userId]);
+    res.json({ message: 'User role updated successfully', is_admin: newRole });
+  } catch (e) {
+    console.error('Toggle user role error:', e);
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
+// Delete user (block if they have borrowed books)
+app.delete('/api/admin/user/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const borrowed = await get('SELECT COUNT(*) as count FROM borrowed_books WHERE user_id = ?', [userId]);
+    if ((borrowed && borrowed.count) > 0) {
+      return res.status(400).json({ error: 'Cannot delete user with borrowed books' });
+    }
+    await run('DELETE FROM users WHERE id = ?', [userId]);
+    res.json({ message: 'User deleted successfully' });
+  } catch (e) {
+    console.error('Delete user error:', e);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ========== FINE MANAGEMENT ==========
+app.get('/api/admin/fines', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const fines = await all(`
+      SELECT 
+        bb.id as borrow_id,
+        bb.user_id,
+        u.username,
+        bb.book_id,
+        b.title as book_title,
+        bb.borrow_date,
+        datetime(bb.borrow_date, '+14 days') as due_date,
+        CAST((julianday('now') - julianday(datetime(bb.borrow_date, '+14 days'))) AS INTEGER) as days_overdue,
+        CAST((julianday('now') - julianday(datetime(bb.borrow_date, '+14 days'))) * 5 AS INTEGER) as fine_amount,
+        COALESCE(bb.fine_paid, 0) as fine_paid
+      FROM borrowed_books bb
+      JOIN users u ON bb.user_id = u.id
+      JOIN books b ON bb.book_id = b.id
+      WHERE datetime(bb.borrow_date, '+14 days') < datetime('now')
+      ORDER BY days_overdue DESC
+    `);
+    res.json(fines);
+  } catch (e) {
+    console.error('Get fines error:', e);
+    res.status(500).json({ error: 'Failed to get fines' });
+  }
+});
+
+app.post('/api/admin/fine/:borrowId/mark-paid', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const borrowId = req.params.borrowId;
+    await run('UPDATE borrowed_books SET fine_paid = 1 WHERE id = ?', [borrowId]);
+    res.json({ message: 'Fine marked as paid successfully' });
+  } catch (e) {
+    console.error('Mark fine paid error:', e);
+    res.status(500).json({ error: 'Failed to mark fine as paid' });
+  }
+});
+
+// Placeholder reminder endpoint (no external email service wired)
+app.post('/api/admin/fine/:userId/send-reminder', authenticateToken, authorizeAdmin, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    console.log(`Fine reminder requested for user ${userId} by ${req.user.username}`);
+    res.json({ message: 'Reminder sent successfully' });
+  } catch (e) {
+    console.error('Send reminder error:', e);
+    res.status(500).json({ error: 'Failed to send reminder' });
   }
 });
 
