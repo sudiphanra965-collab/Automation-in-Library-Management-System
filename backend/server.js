@@ -237,16 +237,36 @@ async function initializeDatabase() {
   }
 
   // Create default admin user if missing (admin/admin)
-  const admin = await get('SELECT id FROM users WHERE username = ?', ['admin']);
-  if (!admin) {
-    const hash = bcrypt.hashSync('admin', 10);
-    await safeRun(
-      `INSERT INTO users (username, password, is_admin, role, verification_status, is_verified)
-       VALUES (?, ?, 1, 'admin', 'approved', 1)`,
-      ['admin', hash]
-    );
-    console.log('✅ Created default admin user (admin/admin)');
-  }
+  const ensureUser = async ({ username, password, isAdmin }) => {
+    const existing = await get('SELECT * FROM users WHERE username = ?', [username]);
+    const desiredHash = bcrypt.hashSync(password, 10);
+
+    if (!existing) {
+      await safeRun(
+        `INSERT INTO users (username, password, is_admin, role, verification_status, is_verified)
+         VALUES (?, ?, ?, ?, 'approved', 1)`,
+        [username, desiredHash, isAdmin ? 1 : 0, isAdmin ? 'admin' : 'user']
+      );
+      console.log(`✅ Created default ${isAdmin ? 'admin' : 'user'} (${username}/${password})`);
+      return;
+    }
+
+    // Ensure role/admin flags are correct
+    await safeRun('UPDATE users SET is_admin = ?, role = ? WHERE id = ?', [isAdmin ? 1 : 0, isAdmin ? 'admin' : 'user', existing.id]);
+    await safeRun("UPDATE users SET verification_status = 'approved', is_verified = 1 WHERE id = ?", [existing.id]);
+
+    // If password hash is missing/invalid or doesn't match, reset to the expected default
+    let ok = false;
+    try { ok = bcrypt.compareSync(password, existing.password || ''); } catch (_) { ok = false; }
+    if (!ok) {
+      await safeRun('UPDATE users SET password = ? WHERE id = ?', [desiredHash, existing.id]);
+      console.log(`🔑 Reset password for ${username} to default (${username}/${password})`);
+    }
+  };
+
+  await ensureUser({ username: 'admin', password: 'admin', isAdmin: true });
+  // Demo user matching docs (kj/kj) so the public site can be tested immediately
+  await ensureUser({ username: 'kj', password: 'kj', isAdmin: false });
 }
 
 // multer for uploads
@@ -353,12 +373,14 @@ app.post('/api/register-student', upload.fields([
 });
 
 app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
+  const username = (req.body && req.body.username != null) ? String(req.body.username).trim() : '';
+  const password = (req.body && req.body.password != null) ? String(req.body.password) : '';
   if (!username || !password) return res.status(400).json({ error: 'Username & password required' });
   try {
     const user = await get('SELECT * FROM users WHERE username = ?', [username]);
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const match = bcrypt.compareSync(password, user.password);
+    let match = false;
+    try { match = bcrypt.compareSync(password, user.password || ''); } catch (_) { match = false; }
     if (!match) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ id: user.id, username: user.username, isAdmin: !!user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ token, username: user.username, isAdmin: !!user.is_admin });
