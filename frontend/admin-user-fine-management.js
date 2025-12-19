@@ -1,7 +1,16 @@
 // Admin User and Fine Management
 // This file handles user management and fine management functionality
 
-const API_BASE = window.location.hostname === 'localhost' ? 'https://localhost:5443' : `https://${window.location.hostname}:5443`;
+function getAPIBase() {
+  const hostname = window.location.hostname;
+  const port = window.location.port;
+  if (port === '5443' || port === '5000') return '';
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return 'https://localhost:5443';
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  if (isIPv4) return `https://${hostname}:5443`;
+  return '';
+}
+const API_BASE = getAPIBase();
 
 let allUsers = [];
 let allFines = [];

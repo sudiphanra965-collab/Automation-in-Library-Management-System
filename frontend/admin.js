@@ -26,8 +26,8 @@ function getAPIBase() {
   const hostname = window.location.hostname;
   const currentPort = window.location.port;
   
-  // If already on HTTPS backend port, use relative URLs
-  if (currentPort === '5443') {
+  // If already on a backend port, use relative URLs
+  if (currentPort === '5443' || currentPort === '5000') {
     return '';
   }
   
@@ -37,8 +37,12 @@ function getAPIBase() {
     return 'https://localhost:5443';
   }
   
-  // For mobile/network access - use HTTPS
-  return `https://${hostname}:5443`;
+  // If hostname is an IP (LAN usage), use HTTPS backend port 5443
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  if (isIPv4) return `https://${hostname}:5443`;
+
+  // Hosted deployments (Netlify/custom domain): expect reverse-proxy for /api/*
+  return '';
 }
 
 const API_BASE = getAPIBase();

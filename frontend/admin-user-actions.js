@@ -171,7 +171,19 @@ async function deleteUser(userId, username) {
   }
   
   try {
-    const apiBase = window.location.hostname === 'localhost' ? 'https://localhost:5443' : `https://${window.location.hostname}:5443`;
+    const hostname = window.location.hostname;
+    const port = window.location.port;
+    let apiBase = '';
+    if (port === '5443' || port === '5000') {
+      apiBase = '';
+    } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      apiBase = 'https://localhost:5443';
+    } else if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) {
+      apiBase = `https://${hostname}:5443`;
+    } else {
+      // Hosted deployments: expect /api/* reverse-proxy
+      apiBase = '';
+    }
     const response = await fetch(`${apiBase}/api/admin/user/${userId}?t=${Date.now()}`, {
       method: 'DELETE',
       headers: {

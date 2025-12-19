@@ -1,6 +1,9 @@
 // New Features JavaScript
 // Features: User Stats, Reading Lists, Reviews, Notifications, Reservations, PWA
 
+// Wrapped to avoid polluting global scope (and to prevent global const collisions across scripts)
+(function () {
+
 // ==================== PWA REGISTRATION ====================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -25,11 +28,16 @@ function getAPIBase() {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `${proto}://localhost:${port}`;
   }
-  
-  return `${proto}://${hostname}:${port}`;
+
+  // If hostname is an IP, keep the original LAN behavior (use the explicit port)
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  if (isIPv4) return `${proto}://${hostname}:${port}`;
+
+  // Hosted deployments (Netlify/custom domain): expect reverse-proxy for /api/*
+  return '';
 }
 
-const API_BASE = getAPIBase();
+const API_BASE = (window.API_BASE != null) ? window.API_BASE : getAPIBase();
 
 async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('token');
@@ -135,6 +143,8 @@ window.loadUserStats = async function() {
     return null;
   }
 }
+
+})(); // end IIFE
 
 // ==================== FEATURE 6: READING LISTS ====================
 async function loadReadingLists() {

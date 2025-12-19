@@ -7,4 +7,22 @@
   # Avoid Netlify trying to enforce a specific Node build; no build step needed.
   NODE_VERSION = "18"
 
+# Optional (recommended) reverse-proxy rules:
+# After you deploy the backend API (Render/Railway/etc), set the "to" host below.
+#
+# Example:
+#   to = "https://your-backend.onrender.com/api/:splat"
+#
+# Then redeploy Netlify ("Clear cache and deploy").
+#
+#[[redirects]]
+#  from = "/api/*"
+#  to = "https://YOUR-BACKEND-HOST/api/:splat"
+#  status = 200
+#
+#[[redirects]]
+#  from = "/uploads/*"
+#  to = "https://YOUR-BACKEND-HOST/uploads/:splat"
+#  status = 200
+
 

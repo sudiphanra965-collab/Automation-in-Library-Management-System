@@ -4,8 +4,8 @@ function getAPIBase() {
   const hostname = window.location.hostname;
   const currentPort = window.location.port;
   
-  // If already on the HTTPS backend port, use relative URLs
-  if (currentPort === '5443') {
+  // If already on a backend port, use relative URLs
+  if (currentPort === '5443' || currentPort === '5000') {
     return '';
   }
   
@@ -15,9 +15,16 @@ function getAPIBase() {
     return 'https://localhost:5443';
   }
   
-  // For mobile/network access - use HTTPS
-  // Mobile users need to accept certificate warning once
-  return `https://${hostname}:5443`;
+  // If hostname is an IP (LAN usage), use HTTPS backend port 5443
+  const isIPv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  if (isIPv4) {
+    // Mobile users need to accept certificate warning once
+    return `https://${hostname}:5443`;
+  }
+
+  // Hosted deployments (Netlify/custom domain):
+  // Frontend should call relative /api/* and rely on a reverse-proxy/redirect to the backend.
+  return '';
 }
 
 const API_BASE = getAPIBase();
@@ -25,6 +32,11 @@ const API_ORIGIN = API_BASE; // convenience alias
 
 // Helper to generate upload URLs that always hit the backend origin
 const UPLOAD = (name) => `${API_ORIGIN}/uploads/${name}`;
+
+// Expose to other scripts (some scripts read window.API_BASE)
+window.API_BASE = API_BASE;
+window.API_ORIGIN = API_ORIGIN;
+window.UPLOAD = UPLOAD;
 
 const categoryImages = {
   "Science": UPLOAD('science.jpg'),
@@ -70,21 +82,32 @@ function authHeader() {
 }
 
 async function apiFetch(path, opts={}) {
-  console.log('apiFetch called with:', path, opts);
+  const DEBUG = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (DEBUG) console.log('apiFetch called with:', path, opts);
   opts.headers = { ...(opts.headers||{}), ...authHeader() };
   if (opts.body && !(opts.body instanceof FormData)) opts.headers['Content-Type'] = 'application/json';
-  console.log('Making request to:', API_BASE + path, 'with headers:', opts.headers);
+  if (DEBUG) console.log('Making request to:', API_BASE + path, 'with headers:', opts.headers);
   const res = await fetch(API_BASE + path, opts);
-  console.log('Response status:', res.status, 'ok:', res.ok);
+  if (DEBUG) console.log('Response status:', res.status, 'ok:', res.ok);
   if (!res.ok) {
     let txt = await res.text();
-    console.log('Error response text:', txt);
+    if (DEBUG) console.log('Error response text:', txt);
+
+    // If we got HTML (common when frontend is deployed but backend API isn't), show a clean error.
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    const looksHtml = ct.includes('text/html') || /^\s*</.test(txt);
+    if (looksHtml && path.startsWith('/api/')) {
+      throw new Error(
+        'Backend API is not reachable. If you deployed only the frontend (Netlify), you must deploy the backend and proxy /api/* to it.'
+      );
+    }
+
     try { const j = JSON.parse(txt); txt = j.error || j.message || txt; } catch(e){}
     throw new Error(txt || `HTTP ${res.status}`);
   }
   if (res.status === 204) return null;
   const json = await res.json();
-  console.log('Response JSON:', json);
+  if (DEBUG) console.log('Response JSON:', json);
   return json;
 }
 
@@ -200,7 +223,21 @@ async function loadBooks({ category=null, search=null, title=null } = {}) {
       renderBooks(books);
     } catch (e) {
       console.error('Error loading books:', e);
-      booksGrid.innerHTML = `<p class="error-message">❌ Error: ${e.message}</p>`;
+      const msg = (e && e.message) ? e.message : 'Failed to load books';
+      const isBackendMissing = /Backend API is not reachable/i.test(msg);
+      if (isBackendMissing) {
+        booksGrid.innerHTML =
+          `<div class="error-message" style="max-width:720px;margin:0 auto;padding:16px;border-radius:12px;background:#fee2e2;color:#7f1d1d;">
+            <div style="font-weight:700;margin-bottom:6px;">❌ Backend not connected</div>
+            <div style="margin-bottom:10px;">You deployed the frontend on Netlify, but the backend API is not deployed/linked yet.</div>
+            <div style="font-size:14px;line-height:1.4;">
+              <div style="margin-bottom:6px;"><b>Fix:</b> Deploy the backend (Node/Express) on Render/Railway, then proxy <code>/api/*</code> and <code>/uploads/*</code> to it (or set an API base override).</div>
+              <div><b>Backend start:</b> <code>backend/server.js</code> (uses <code>PORT</code> env)</div>
+            </div>
+          </div>`;
+      } else {
+        booksGrid.innerHTML = `<p class="error-message">❌ Error: ${escapeHtml(msg)}</p>`;
+      }
     }
   }, 100); // 100ms debounce
 }
