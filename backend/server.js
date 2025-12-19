@@ -40,6 +40,23 @@ const run = (sql, params=[]) => new Promise((res, rej) => db.run(sql, params, fu
 const all = (sql, params=[]) => new Promise((res, rej) => db.all(sql, params, (err, rows) => err ? rej(err) : res(rows)));
 const get = (sql, params=[]) => new Promise((res, rej) => db.get(sql, params, (err, row) => err ? rej(err) : res(row)));
 
+// Lightweight health endpoint for cloud debugging
+app.get('/api/health', async (req, res) => {
+  try {
+    const row = await get('SELECT COUNT(*) AS c FROM books');
+    res.json({
+      ok: true,
+      booksCount: row ? row.c : null,
+      seedPath: path.join(__dirname, 'seed-books.json'),
+      seedPathExists: !!app.locals.seedPathExists,
+      seedBooksLength: app.locals.seedBooksLength ?? null,
+      cwd: process.cwd()
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ==================== DATABASE AUTO-INIT (for cloud deploys) ====================
 // Render/Netlify deploys do not include local `library.db` (we don't commit DB files).
 // This ensures the DB schema exists and seeds sample data when empty.
@@ -88,6 +105,15 @@ async function initializeDatabase() {
     rating REAL DEFAULT 0,
     review_count INTEGER DEFAULT 0
   )`);
+
+  // Ensure newer columns exist if DB was created by an older version (best-effort)
+  await safeRun(`ALTER TABLE books ADD COLUMN publisher TEXT`);
+  await safeRun(`ALTER TABLE books ADD COLUMN year INTEGER`);
+  await safeRun(`ALTER TABLE books ADD COLUMN abstract TEXT`);
+  await safeRun(`ALTER TABLE books ADD COLUMN toc TEXT`);
+  await safeRun(`ALTER TABLE books ADD COLUMN subjects TEXT`);
+  await safeRun(`ALTER TABLE books ADD COLUMN rating REAL DEFAULT 0`);
+  await safeRun(`ALTER TABLE books ADD COLUMN review_count INTEGER DEFAULT 0`);
 
   // FTS (optional but used by advanced search)
   await safeRun(`CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
@@ -232,6 +258,10 @@ async function initializeDatabase() {
     seedBooks = null;
   }
 
+  app.locals.seedPathExists = fs.existsSync(seedPath);
+  app.locals.seedBooksLength = seedBooks ? seedBooks.length : 0;
+  console.log(`📦 Seed file: ${app.locals.seedPathExists ? 'found' : 'missing'} (${app.locals.seedBooksLength} books)`);
+
   const normalizeImage = (img) => {
     const s = String(img || '').trim();
     if (!s) return '/uploads/default.jpg';
@@ -250,27 +280,32 @@ async function initializeDatabase() {
       if (!title) continue;
       const exists = await get('SELECT id FROM books WHERE title = ? AND author = ? AND isbn = ? LIMIT 1', [title, author, isbn]);
       if (exists) continue;
-      await safeRun(
-        `INSERT INTO books (title, author, isbn, category, description, image, available, publisher, year, abstract, toc, subjects, rating, review_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          title,
-          author,
-          isbn,
-          String(b.category || ''),
-          String(b.description || ''),
-          normalizeImage(b.image),
-          (b.available == null ? 1 : (b.available ? 1 : 0)),
-          String(b.publisher || ''),
-          (b.year == null || b.year === '' ? null : Number(b.year)),
-          String(b.abstract || ''),
-          String(b.toc || ''),
-          String(b.subjects || ''),
-          Number(b.rating || 0),
-          Number(b.review_count || 0)
-        ]
-      );
-      inserted++;
+      try {
+        await run(
+          `INSERT INTO books (title, author, isbn, category, description, image, available, publisher, year, abstract, toc, subjects, rating, review_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            title,
+            author,
+            isbn,
+            String(b.category || ''),
+            String(b.description || ''),
+            normalizeImage(b.image),
+            (b.available == null ? 1 : (b.available ? 1 : 0)),
+            String(b.publisher || ''),
+            (b.year == null || b.year === '' ? null : Number(b.year)),
+            String(b.abstract || ''),
+            String(b.toc || ''),
+            String(b.subjects || ''),
+            Number(b.rating || 0),
+            Number(b.review_count || 0)
+          ]
+        );
+        inserted++;
+      } catch (e) {
+        // Log a short error so cloud logs show why seeding failed
+        console.error(`⚠️ Seed insert failed for "${title}" (${isbn}):`, e.message);
+      }
     }
 
     // Backfill FTS index (best-effort, avoid duplicates by full rebuild when small)
